@@ -1,0 +1,29 @@
+# Qt build directories
+/build-*/
+/debug/
+/release/
+/docs/
+/build/
+/docs/
+/doxygen-awesome-css/
+/doxygen-custom/
+/.vscode/
+
+# Qt Creator specific files
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+Dockfile
+Dockfile.*
+Doxyfile
+Doxyfile-awesome
+myheader.tex
+
+# Other
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib

@@ -1,0 +1,59 @@
+               [v4l2src (source)]
+                        │
+                        ▼
+           [capsfilter1 (JPEG: MJPG, 640x480 @25fps)]
+                        │
+                        ▼
+                    [jpegparse]
+                        │
+                        ▼
+                    [jpegdec]
+                        │
+                        ▼
+                   [videocrop]
+                        │
+                        ▼
+                  [videoscale]
+                        │
+                        ▼
+             [aspectratiocrop (4:3 aspect)]
+                        │
+                        ▼
+         [nvvideoconvert (nvvidconvsrc1)]
+                        │
+                        ▼
+        [capsfilter2 (NVMM, format NV12)]
+                        │
+                        ▼
+     ┌────────────────────────────┐
+     │   nvstreammux (streammux)  │
+     └────────────────────────────┘
+                        │
+                        ▼
+         [nvvideoconvert (nvvidconvsrc2)]
+                        │
+                        ▼
+ [capsfilter_nvvidconvsrc2 (NVMM, RGBA)]
+                        │
+                        ▼
+                   [nvdsosd (OSD)]
+                        │
+                        ▼
+      [nvvideoconvert (nvvidconvsrc3)]
+                        │
+                        ▼
+             [capsfilter3 (RGBA, system mem)]
+                        │
+                        ▼
+                      [tee]
+                        │
+           ┌────────────┴────────────┐
+           │                         │
+           ▼                         ▼
+  [queue_display]            [queue_process]
+           │                         │
+           ▼                         ▼
+      [glupload]                [appsink]
+           │                         │
+           ▼                         ▼
+     [glimagesink]       (Processing via on_new_sample)

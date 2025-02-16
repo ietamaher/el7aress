@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>768</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">background-color: rgb(154, 153, 150);</string>
+  </property>
+  <property name="iconSize">
+   <size>
+    <width>5</width>
+    <height>5</height>
+   </size>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="VideoGLWidget_gl" name="cameraContainerWidget" native="true">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>1024</width>
+      <height>768</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color: rgb(36, 31, 49);</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="track">
+    <property name="geometry">
+     <rect>
+      <x>1060</x>
+      <y>20</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>track</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="fireOn">
+    <property name="geometry">
+     <rect>
+      <x>1110</x>
+      <y>100</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>fire on</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="fieOff">
+    <property name="geometry">
+     <rect>
+      <x>1110</x>
+      <y>130</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>fire off</string>
+    </property>
+   </widget>
+   <widget class="QListWidget" name="trackIdListWidget">
+    <property name="geometry">
+     <rect>
+      <x>1050</x>
+      <y>180</y>
+      <width>101</width>
+      <height>281</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="mode">
+    <property name="geometry">
+     <rect>
+      <x>1060</x>
+      <y>500</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>modes</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="motion">
+    <property name="geometry">
+     <rect>
+      <x>1060</x>
+      <y>550</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>motion</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="up">
+    <property name="geometry">
+     <rect>
+      <x>1170</x>
+      <y>220</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>up</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="down">
+    <property name="geometry">
+     <rect>
+      <x>1170</x>
+      <y>250</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>down</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="autotrack">
+    <property name="geometry">
+     <rect>
+      <x>1170</x>
+      <y>290</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>autotrack</string>
+    </property>
+   </widget>
+  </widget>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>VideoGLWidget_gl</class>
+   <extends>QWidget</extends>
+   <header location="global">utils/videoglwidget_gl.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
