@@ -8,6 +8,8 @@
 /doxygen-awesome-css/
 /doxygen-custom/
 /.vscode/
+/.prompts/
+
 
 # Qt Creator specific files
 *.pro.user

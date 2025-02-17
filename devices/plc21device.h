@@ -33,7 +33,7 @@ struct Plc21PanelData {
     bool downSw            = false;
     bool menuValSw         = false;
 
-    int  speedSw           = 0;
+    int  speedSw           = 2;
     int  fireMode          = 0;
     int  panelTemperature  = 0;
 

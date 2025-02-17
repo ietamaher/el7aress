@@ -114,6 +114,7 @@ void NightCameraControlDevice::setDigitalZoom(quint8 zoomLevel) {
     NightCameraData newData = m_currentData;
     newData.digitalZoomEnabled = (zoomLevel > 0);
     newData.digitalZoomLevel = zoomLevel;
+    newData.currentHFOV = (zoomLevel > 0) ? 5.2 : 10.4;
     updateNightCameraData(newData);
 
     QByteArray zoomArg = (zoomLevel > 0) ? QByteArray::fromHex("0004") : QByteArray::fromHex("0000");
@@ -125,7 +126,9 @@ void NightCameraControlDevice::setVideoModeLUT(quint16 mode) {
     NightCameraData newData = m_currentData;
     newData.videoMode = mode;
     updateNightCameraData(newData);
-
+    if (mode > 12) {
+        mode = 12;
+    }
     QByteArray modeArg = QByteArray::fromHex(QByteArray::number(mode, 16).rightJustified(4, '0'));
     QByteArray command = buildCommand(0x10, modeArg);
     sendCommand(command);

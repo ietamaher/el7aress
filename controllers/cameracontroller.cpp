@@ -218,7 +218,7 @@ void CameraController::onTrackingRestartProcessed(bool newStatus)
 {
     if (m_stateModel) {
         m_stateModel->setTrackingRestartRequested(newStatus);
-        qDebug() << "CameraController: Tracking restart flag updated to" << newStatus;
+        //qDebug() << "CameraController: Tracking restart flag updated to" << newStatus;
     }
 }
 
@@ -226,7 +226,7 @@ void CameraController::onTrackingStartProcessed(bool newStatus)
 {
     if (m_stateModel) {
         m_stateModel->setTrackingStarted(newStatus);
-        qDebug() << "CameraController: Tracking start flag updated to" << newStatus;
+        //qDebug() << "CameraController: Tracking start flag updated to" << newStatus;
     }
 }
 

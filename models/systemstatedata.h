@@ -10,26 +10,26 @@ enum class MotionMode {
     Pattern,       // turret is scanning a pattern
     AutoTrack,     // AI auto track
     ManualTrack,    // user selects ROI track
-    RadarTracking
-    // etc.
+    RadarTracking,
+    Idle// etc.
 };
 
 struct SystemStateData {
     // ========== Global & Mode Information ==========
     //QDateTime systemTime;
     OperationalMode opMode = OperationalMode::Idle;
-    MotionMode motionMode = MotionMode::Manual;
+    MotionMode motionMode = MotionMode::Idle;
     OperationalMode previousOpMode = OperationalMode::Idle;
-    MotionMode previousMotionMode = MotionMode::Manual;
+    MotionMode previousMotionMode = MotionMode::Idle;
 
 
     // ========== Day Camera ==========
-    double dayZoomPosition = 0;
-    double dayCurrentHFOV = 0;
+    double dayZoomPosition = 0.0;
+    double dayCurrentHFOV = 0.0;
 
     // ========== Night Camera ==========
-    double nightZoomPosition = 0;
-    double nightCurrentHFOV = 0;
+    double nightZoomPosition = 0.0;
+    double nightCurrentHFOV = 0.0;
 
     // ========== Gyro / Orientation ==========
     double roll = 0.0;
@@ -142,6 +142,8 @@ struct SystemStateData {
             qFuzzyCompare(axisAzimuth + 1.0, other.axisAzimuth + 1.0) &&
             qFuzzyCompare(axisElevation + 1.0, other.axisElevation + 1.0) &&
             qFuzzyCompare(actuatorPosition + 1.0, other.actuatorPosition + 1.0) &&
+            qFuzzyCompare(dayCurrentHFOV + 1.0, other.dayCurrentHFOV + 1.0) &&
+            qFuzzyCompare(nightCurrentHFOV + 1.0, other.nightCurrentHFOV + 1.0) &&
 
             // LRF (Laser Range Finder)
             qFuzzyCompare(lrfDistance + 1.0, other.lrfDistance + 1.0) &&

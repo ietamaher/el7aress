@@ -12,7 +12,7 @@ void SystemStateModel::onDayCameraDataChanged(const DayCameraData &dayData)
 
     newData.dayZoomPosition = dayData.zoomPosition;
     newData.dayCurrentHFOV = dayData.currentHFOV;
-     updateData(newData);
+    updateData(newData);
 
 }
 
@@ -26,6 +26,13 @@ void SystemStateModel::onGyroDataChanged(const GyroData &gyroData)
 void SystemStateModel::onJoystickAxisChanged(int axis, float normalizedValue)
 {
     SystemStateData newData = m_data;
+
+    if (axis == 0){
+        newData.joystickAzValue = normalizedValue;
+    } else if (axis == 1){
+        newData.joystickElValue = normalizedValue;
+    }
+
     updateData(newData);
 }
 
@@ -54,7 +61,7 @@ void SystemStateModel::onNightCameraDataChanged(const NightCameraData &nightData
     SystemStateData newData = m_data;
 
     newData.nightZoomPosition = nightData.digitalZoomLevel;
-    //newData.nightCurrentHFOV = nightData.currentHFOV;
+    newData.nightCurrentHFOV = nightData.currentHFOV;
     updateData(newData);
 
 }

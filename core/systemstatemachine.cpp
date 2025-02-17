@@ -75,6 +75,13 @@ void SystemStateMachine::setState(State newState)
 
 void SystemStateMachine::transitionTo(State newState)
 {
+    auto data = m_stateModel->data();
+    // If station is not enabled, do not allow Surv/Track
+    if (!data.stationEnabled && (newState == Surveillance || newState == Tracking)) {
+        qDebug() << "Refusing to enter" << newState << "because station is inactive.";
+        return;
+    }
+
     if (newState == m_currentState) return;
 
     // Possibly do exit actions for old state
@@ -97,7 +104,7 @@ void SystemStateMachine::transitionTo(State newState)
     case Idle:
         m_stateModel->setOpMode(OperationalMode::Idle);
         // Typically motion mode is irrelevant in Idle
-        m_stateModel->setMotionMode(MotionMode::Manual); // or some default
+        m_stateModel->setMotionMode(MotionMode::Idle); // or some default
         //m_cameraCtrl->setProcessingMode(CameraController::ProcessMode::IdleMode);
         break;
     case Surveillance:

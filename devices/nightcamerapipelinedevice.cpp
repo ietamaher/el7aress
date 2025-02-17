@@ -741,7 +741,7 @@ GstPadProbeReturn NightCameraPipelineDevice::osd_sink_pad_buffer_probe(GstPad *p
         self->addTextToDisplayMeta(display_meta1, 865, 88, azText);
         g_free(azText);
         // **   FOV Label with Border Effect **
-        char* displayFOVText =  g_strdup_printf("FOV: %.0f°", state.gimbalEl);
+        char* displayFOVText =  g_strdup_printf("FOV: %.1f°", state.nightCurrentHFOV);
         self->addTextToDisplayMeta(display_meta1, 600, 690, displayFOVText);
         g_free(displayFOVText);
 

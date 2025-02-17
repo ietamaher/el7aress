@@ -37,13 +37,11 @@ void JoystickController::onAxisChanged(int axis, float value)
     if (axis == 0) {
         // X-axis: az
         float velocityAz = value * 10.0f; // scale factor
-        qDebug() << "Joystick: Az Axis =>" << velocityAz;
-        // m_gimbalController->setAzimuthVelocity(velocityAz);
+        //qDebug() << "Joystick: Az Axis =>" << velocityAz;
     } else if (axis == 1) {
         // Y-axis: el
         float velocityEl = -value * 10.0f; // maybe invert sign
-        qDebug() << "Joystick: El Axis =>" << velocityEl;
-        // m_gimbalController->setElevationVelocity(velocityEl);
+        //qDebug() << "Joystick: El Axis =>" << velocityEl;
     }
 }
 
@@ -78,6 +76,11 @@ void JoystickController::onButtonChanged(int button, bool pressed)
     case 10:
     case 12:
         if (pressed) {
+            if (!curr.stationEnabled) {
+                qDebug() << "Cannot toggle, station is off.";
+                return;
+            }
+
             OperationalMode currentMode = (m_stateMachine->currentState() == SystemStateMachine::Surveillance)
             ? OperationalMode::Surveillance
             : OperationalMode::Tracking;
@@ -104,7 +107,11 @@ void JoystickController::onButtonChanged(int button, bool pressed)
     case 11:
     case 13:
         if (pressed) {
-            // read m_stateModel
+            if (!curr.stationEnabled) {
+                qDebug() << "Cannot toggle, station is off.";
+                return;
+            }
+
             OperationalMode opMode = curr.opMode;
             MotionMode motionMode = curr.motionMode;
 
@@ -141,6 +148,11 @@ void JoystickController::onButtonChanged(int button, bool pressed)
             //     qDebug() << "Cannot engage from Idle!";
             //     return;
             // }
+
+            if (!curr.stationEnabled) {
+                qDebug() << "Cannot toggle, station is off.";
+                return;
+            }
 
             if (curr.gunArmed) {
                 // Remember what mode we were in, for revert

@@ -59,8 +59,8 @@ void SystemController::initializeSystem()
     m_plc21Device = new Plc21Device("/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if00", 115200, 31, this);
     m_plc42Device = new Plc42Device("/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if02", 115200, 31, this);
     m_servoActuatorDevice = new ServoActuatorDevice(this);
-    m_servoAzDevice = new ServoDriverDevice("az", "/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if04", 115200, 2, this);
-    m_servoElDevice = new ServoDriverDevice("el", "/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if06", 115200, 1, this);
+    m_servoAzDevice = new ServoDriverDevice("az", "/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if04", 230400, 2, this);
+    m_servoElDevice = new ServoDriverDevice("el", "/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if06", 230400, 1, this);
 
 
     // 2) Create data models
@@ -200,6 +200,13 @@ void SystemController::initializeSystem()
     //m_servoActuatorDevice->openSerialPort("/dev/ttyUSB1");
     m_servoAzDevice->connectDevice();
     m_servoElDevice->connectDevice();
+
+
+    //
+    m_dayCamControl->zoomOut();
+    m_dayCamControl->zoomStop(); // i added this to get initial zoom position and calculate FOV !!!
+    m_nightCamControl->setDigitalZoom(0);
+
 }
 
 void SystemController::showMainWindow()

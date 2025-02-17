@@ -15,6 +15,7 @@ struct NightCameraData
     bool ffcInProgress = false;
     bool digitalZoomEnabled = false;
     quint8 digitalZoomLevel = 0;
+    double currentHFOV = 0;
 
     bool operator==(const NightCameraData &other) const {
         return (isConnected == other.isConnected &&
@@ -22,7 +23,11 @@ struct NightCameraData
                 videoMode == other.videoMode &&
                 ffcInProgress == other.ffcInProgress &&
                 digitalZoomEnabled == other.digitalZoomEnabled &&
-                digitalZoomLevel == other.digitalZoomLevel);
+                digitalZoomLevel == other.digitalZoomLevel &&
+                currentHFOV == other.currentHFOV
+
+                );
+
     }
     bool operator!=(const NightCameraData &other) const {
         return !(*this == other);

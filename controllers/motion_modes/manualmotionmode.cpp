@@ -12,6 +12,9 @@ ManualMotionMode::ManualMotionMode(QObject* parent)
 void ManualMotionMode::enterMode(GimbalController* controller)
 {
     qDebug() << "[ManualMotionMode] Enter";
+    setAcceleration(controller->azimuthServo(), 100000);
+    setAcceleration(controller->elevationServo(), 100000);
+
 }
 
 void ManualMotionMode::exitMode(GimbalController* controller)
@@ -52,7 +55,7 @@ void ManualMotionMode::update(GimbalController *controller)
     }
 
     // 5) Decide your angular velocity from speed switch or m_stateModel
-    float angularVelocity = data.speedSw * 25000; // e.g. 15000 if not assigned
+    float angularVelocity = data.speedSw * 250; // e.g. 15000 if not assigned
     // get elevation angle from m_stateModel
     double elevationAngle = data.gimbalEl;
 
@@ -134,7 +137,7 @@ void ManualMotionMode::handleServoControl(ServoDriverDevice *driverInterface, in
     if (!driverInterface) return;
 
     // 1) set acceleration
-    setAcceleration(driverInterface, 100000);
+    //setAcceleration(driverInterface, 100000);
 
     // 2) clamp speed
     quint32 maxSpeed = 30000;
@@ -173,8 +176,11 @@ void ManualMotionMode::setAcceleration(ServoDriverDevice *driverInterface, quint
     QVector<quint16> accelData;
     accelData.append(upper);
     accelData.append(lower);
-    // driverInterface->writeData(0x0676, accelData);
-    // driverInterface->writeData(0x0677, accelData);
-    // etc. based on your servo map
+    //driverInterface->writeData(0x0676, accelData);
+    //driverInterface->writeData(0x0677, accelData);
+        driverInterface->writeData(0x2A4, accelData);
+        driverInterface->writeData(0x282, accelData);
+        driverInterface->writeData(0x600, accelData);
+        driverInterface->writeData(0x680, accelData);
 }
 

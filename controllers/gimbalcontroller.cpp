@@ -15,7 +15,7 @@ GimbalController::GimbalController(ServoDriverDevice* azServo,
     , m_stateModel(stateModel)
 {
     // Default motion mode
-    setMotionMode(MotionMode::Manual);
+    setMotionMode(MotionMode::Idle);
 
     if (m_stateModel) {
         connect(m_stateModel, &SystemStateModel::dataChanged,

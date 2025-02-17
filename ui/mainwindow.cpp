@@ -81,6 +81,7 @@ MainWindow::MainWindow(GimbalController *gimbal,
 
     updateTimer->start();
 
+
 }
 
 MainWindow::~MainWindow()

@@ -16,7 +16,7 @@ struct DayCameraData
     quint16 zoomPosition = 0;   // 14-bit max for VISCA
     bool autofocusEnabled = true;
     quint16 focusPosition = 0;  // 12-bit max
-    double currentHFOV = 0;
+    float currentHFOV = 0.0;
 
     bool operator==(const DayCameraData &other) const {
         return (
@@ -26,7 +26,8 @@ struct DayCameraData
             zoomMovingOut == other.zoomMovingOut &&
             zoomPosition == other.zoomPosition &&
             autofocusEnabled == other.autofocusEnabled &&
-            focusPosition == other.focusPosition
+            focusPosition == other.focusPosition &&
+            currentHFOV == other.currentHFOV
             );
     }
     bool operator!=(const DayCameraData &other) const {
@@ -77,6 +78,9 @@ private:
     void sendCommand(const QByteArray &command);
     void updateDayCameraData(const DayCameraData &newData);
     double computeHFOVfromZoom(quint16 zoomPos);
+
+    QByteArray m_lastSentCommand;
+
 };
 
 #endif // DAYCAMERACONTROLDEVICE_H
