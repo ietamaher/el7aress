@@ -36,7 +36,7 @@ void JoystickController::onAxisChanged(int axis, float value)
     // Let’s assume we do velocity control or direct position offsets
     if (axis == 0) {
         // X-axis: az
-        float velocityAz = value * 10.0f; // scale factor
+        float velocityAz = value * 10.0f; //  scale factor
         //qDebug() << "Joystick: Az Axis =>" << velocityAz;
     } else if (axis == 1) {
         // Y-axis: el
@@ -80,26 +80,22 @@ void JoystickController::onButtonChanged(int button, bool pressed)
                 qDebug() << "Cannot toggle, station is off.";
                 return;
             }
+            const bool enteringTracking = 
+            (m_stateMachine->currentState() != SystemStateMachine::Tracking);
 
-            OperationalMode currentMode = (m_stateMachine->currentState() == SystemStateMachine::Surveillance)
-            ? OperationalMode::Surveillance
-            : OperationalMode::Tracking;
+            if (enteringTracking) {
+                // Get valid initial mode for current camera
+                const MotionMode initialMode = curr.activeCameraIsDay 
+                    ? MotionMode::AutoTrack 
+                    : MotionMode::ManualTrack;
 
-            if (currentMode == OperationalMode::Surveillance) {
-                // Enter tracking
                 m_stateMachine->setState(SystemStateMachine::Tracking);
-                // If day camera => AutoTrack, else => ManualTrack
-                if (curr.activeCameraIsDay) {
-                    m_stateModel->setMotionMode(MotionMode::AutoTrack);
-                } else {
-                    m_stateModel->setMotionMode(MotionMode::ManualTrack);
-                }
-
-            } else if (currentMode == OperationalMode::Tracking) {
-                // Switch back to surveillance
+                m_stateModel->setMotionMode(initialMode);
+            } else {
                 m_stateMachine->setState(SystemStateMachine::Surveillance);
                 m_stateModel->setMotionMode(MotionMode::Manual);
             }
+
         }
         break;
 
@@ -124,17 +120,15 @@ void JoystickController::onButtonChanged(int button, bool pressed)
                 }
 
             } else if (opMode == OperationalMode::Tracking) {
+                MotionMode nextMode = MotionMode::ManualTrack;
                 // Only do AutoTrack if day camera
                 if (curr.activeCameraIsDay) {
-                    if (motionMode == MotionMode::AutoTrack) {
-                        m_stateModel->setMotionMode(MotionMode::ManualTrack);
-                    } else {
-                        m_stateModel->setMotionMode(MotionMode::AutoTrack);
-                    }
-                } else {
-                    // night camera => only ManualTrack
-                    m_stateModel->setMotionMode(MotionMode::ManualTrack);
+                    nextMode = (motionMode == MotionMode::AutoTrack)
+                        ? MotionMode::ManualTrack
+                        : MotionMode::AutoTrack;
                 }
+                m_stateModel->setMotionMode(nextMode);
+                
             }
         }
         break;
@@ -168,13 +162,14 @@ void JoystickController::onButtonChanged(int button, bool pressed)
             }
         } else {
             // On release, revert to previous
-            SystemStateData updated = m_stateModel->data();
-            // This calls "fromOperationalMode" in your state machine
-            m_stateMachine->setState(
-                SystemStateMachine::fromOperationalMode(updated.previousOpMode)
-                );
-            m_stateModel->setMotionMode(updated.previousMotionMode);
+            m_stateMachine->setState(SystemStateMachine::fromOperationalMode(
+                m_stateModel->data().previousOpMode
+            ));
+            m_stateModel->setMotionMode(m_stateModel->data().previousMotionMode);
         }
+
+
+
         break;
 
         // Fire Weapon

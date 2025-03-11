@@ -46,7 +46,10 @@
 #include "utils/millenious.h"
 
 #include "utils/dcftrackervpi.h"
+#include <memory>
 
+// Constant for PC/Jetson
+constexpr int USE_PC  = 0;
 // Forward Declarations
 class QThread;
 
@@ -90,7 +93,8 @@ public:
         return appsink;
     }
 
-
+    ProcessingMode getCurrentMode() const { return currentMode; }
+    void safeStopTracking();
 signals:
     //void newFrameAvailable(uchar4* frame, int width, int height);
     void newFrameAvailable(const QByteArray &frameData, int width, int height);
@@ -146,6 +150,7 @@ private:
     GstElement *capsfilter1;
     GstElement *videocrop;
     GstElement *videoscale;
+    GstElement *nvvideoconvert_crop_scale;
     GstElement *capsfilter2, *capsfilter_nvvidconvsrc2,  *glupload;
     GstElement *capsfilter3;
     GstElement *nvvidconvsrc1;
@@ -185,7 +190,8 @@ private:
     GstGLContext *glContext;
 
     // Tracking Variables
-    DcfTrackerVPI *_tracker;
+    //DcfTrackerVPI *_tracker;
+    std::unique_ptr<DcfTrackerVPI> _tracker;
     bool trackState;
 
     bool trackerInitialized;
@@ -224,6 +230,7 @@ private:
     bool trackerModeEnabled;   // True when user switches to tracker mode
     bool trackingStarted;
     bool trackingRestartRequested;
+    QMutex m_mutex;
 };
 
 #endif // CAMERA_PIPELINE_DAY_H

@@ -99,6 +99,16 @@ void SystemStateModel::onPlc21DataChanged(const Plc21PanelData &pData)
 
     newData.speedSw = pData.speedSw;
 
+    // Camera change validation
+    /*if (newData.activeCameraIsDay != m_data.activeCameraIsDay) {
+        if (newData.opMode == OperationalMode::Tracking) {
+            // Auto-correct motion mode when switching cameras
+            newData.motionMode = newData.activeCameraIsDay 
+                ? MotionMode::AutoTrack 
+                : MotionMode::ManualTrack;
+        }
+    }*/
+
     updateData(newData);
 }
 
@@ -238,7 +248,12 @@ void SystemStateModel::setUpSw(bool pressed)
     newData.upSwitchButton = pressed;
     updateData(newData);
 }
-
+void SystemStateModel::setActiveCameraIsDay(bool pressed)
+{
+    SystemStateData newData = m_data;
+    newData.activeCameraIsDay = pressed;
+    updateData(newData);
+}
 void SystemStateModel::updateData(const SystemStateData &newState)
 {
     if (newState != m_data) {

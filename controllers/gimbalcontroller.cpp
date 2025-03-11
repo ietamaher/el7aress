@@ -22,6 +22,15 @@ GimbalController::GimbalController(ServoDriverDevice* azServo,
                 this,         &GimbalController::onSystemStateChanged);
     }
 
+    connect(m_azServo, &ServoDriverDevice::alarmDetected, this, &GimbalController::onAzAlarmDetected);
+    connect(m_azServo, &ServoDriverDevice::alarmCleared, this, &GimbalController::onAzAlarmCleared);
+    //connect(m_azServo, &ServoDriverDevice::alarmHistoryRead, this, &GimbalController::alarmHistoryRead);
+    //connect(m_azServo, &ServoDriverDevice::alarmHistoryCleared, this, &GimbalController::alarmHistoryCleared);
+    connect(m_elServo, &ServoDriverDevice::alarmDetected, this, &GimbalController::onElAlarmDetected);
+    connect(m_elServo, &ServoDriverDevice::alarmCleared, this, &GimbalController::onElAlarmCleared);
+    //connect(m_elServo, &ServoDriverDevice::alarmHistoryRead, this, &GimbalController::alarmHistoryRead);
+    //connect(m_elServo, &ServoDriverDevice::alarmHistoryCleared, this, &GimbalController::alarmHistoryCleared);
+
     // Initialize and start the update timer
     m_updateTimer = new QTimer(this);
     connect(m_updateTimer, &QTimer::timeout, this, &GimbalController::update);
@@ -91,4 +100,45 @@ void GimbalController::setMotionMode(MotionMode newMode)
     }
 
     qDebug() << "[GimbalController] Mode set to" << int(m_currentMotionModeType);
+}
+
+void GimbalController::readAlarms()
+{
+    if (m_azServo) {
+        m_azServo->readAlarmStatus();
+    }
+    if (m_elServo) {
+        m_elServo->readAlarmStatus();
+    }
+}
+
+void GimbalController::clearAlarms()
+{
+    if (m_azServo) {
+        m_azServo->clearAlarm();
+    }
+    if (m_elServo) {
+        m_elServo->clearAlarm();
+    }
+}
+
+void GimbalController::onAzAlarmDetected(uint16_t alarmCode, const QString &description)
+{
+    emit azAlarmDetected(alarmCode, description);
+}
+
+void GimbalController::onAzAlarmCleared()
+{
+    emit azAlarmCleared();
+}
+
+void GimbalController::onElAlarmDetected(uint16_t alarmCode, const QString &description)
+{
+    emit elAlarmDetected(alarmCode, description);
+
+}
+
+void GimbalController::onElAlarmCleared()
+{
+    emit elAlarmCleared();
 }

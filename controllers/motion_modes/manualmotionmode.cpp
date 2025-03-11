@@ -66,8 +66,8 @@ void ManualMotionMode::update(GimbalController *controller)
     // 7) Evaluate joystick inputs
     // store them in m_stateModel as joystickAzValue, joystickElValue
     // (or you might store them as normalized floats).
-    int azInput = data.joystickAzValue;
-    int elInput = data.joystickElValue;
+    float azInput = data.joystickAzValue;
+    float elInput = data.joystickElValue;
 
     // 8) Evaluate if we should clamp or stop elevation movement
     const double minElevationAngle = -10.0;
@@ -132,7 +132,7 @@ void ManualMotionMode::stopServos(GimbalController *controller)
     }
 }
 
-void ManualMotionMode::handleServoControl(ServoDriverDevice *driverInterface, int joystickInput, quint16 angularVelocity)
+void ManualMotionMode::handleServoControl(ServoDriverDevice *driverInterface, float joystickInput, quint16 angularVelocity)
 {
     if (!driverInterface) return;
 

@@ -137,7 +137,7 @@ private:
     GstElement *queue;
     GstElement *capsfilter1;
     GstElement *videocrop;
-    GstElement *videoscale;
+    GstElement *videoscale, *nvvideoconvert_crop_scale;
     GstElement *capsfilter2, *capsfilter_nvvidconvsrc2,  *glupload;
     GstElement *capsfilter3;
     GstElement *nvvidconvsrc1;

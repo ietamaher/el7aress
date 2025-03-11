@@ -12,7 +12,7 @@ class GimbalController;
 class WeaponController;
 class CameraController;
 class JoystickController;
-
+class SystemStateMachine;
 class SystemStateModel;
 class DayCameraPipelineDevice;
 
@@ -30,6 +30,7 @@ public:
     explicit MainWindow(GimbalController *gimbal,
                         WeaponController *weapon,
                         CameraController *camera,
+                        SystemStateMachine *stateMachine,
                         JoystickController *joystick,
                         SystemStateModel *stateModel,
                         QWidget *parent = nullptr);
@@ -87,6 +88,20 @@ private slots:
 
     void on_autotrack_clicked();
 
+    void on_day_clicked();
+
+    void on_night_clicked();
+
+    void on_quit_clicked();
+    void onAlarmDetected(uint16_t alarmCode, const QString &description);
+    void onAlarmCleared();
+    void onAlarmHistoryRead(const QList<uint16_t> &alarmHistory);
+    void onAlarmHistoryCleared();
+
+    void on_read_clicked();
+
+    void on_clear_clicked();
+
 private:
     Ui::MainWindow *ui;
 
@@ -94,6 +109,7 @@ private:
     WeaponController *m_weaponCtrl;    
     CameraController *m_cameraCtrl;
     JoystickController *m_joystickCtrl;
+    SystemStateMachine *m_stateMachine;
 
     QVBoxLayout *m_layout = nullptr;
 

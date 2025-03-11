@@ -115,7 +115,7 @@ void SystemStateMachine::transitionTo(State newState)
         break;
     case Tracking:
         m_stateModel->setOpMode(OperationalMode::Tracking);
-        m_stateModel->setMotionMode( MotionMode::AutoTrack );
+        //m_stateModel->setMotionMode( MotionMode::AutoTrack );
         //m_cameraCtrl->setProcessingMode(CameraController::ProcessMode::TrackingMode);
         // or setMotionMode( MotionMode::ManualTrack ) for user bounding box
         break;

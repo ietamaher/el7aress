@@ -5,15 +5,18 @@
 #include "controllers/cameracontroller.h"
 #include "controllers/joystickcontroller.h"
 #include "devices/daycamerapipelinedevice.h"
+#include "core/systemstatemachine.h"
 
 #include "models/systemstatemodel.h"
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QDebug>
+#include <QCoreApplication>
 
 MainWindow::MainWindow(GimbalController *gimbal,
                        WeaponController *weapon,
                        CameraController *camera,
+                       SystemStateMachine *stateMachine,
                        JoystickController *joystick,
                        SystemStateModel *stateModel,
                        QWidget *parent)
@@ -24,6 +27,7 @@ MainWindow::MainWindow(GimbalController *gimbal,
     m_cameraCtrl(camera),
     m_joystickCtrl(joystick),
     m_stateModel(stateModel),
+    m_stateMachine(stateMachine),
     m_isDayCameraActive(true)
 {
     ui->setupUi(this);
@@ -35,6 +39,11 @@ MainWindow::MainWindow(GimbalController *gimbal,
 
     connect(m_joystickCtrl, &JoystickController::trackSelectButtonPressed,
             this, &MainWindow::onTrackSelectButtonPressed);
+
+            connect(m_gimbalCtrl, &GimbalController::azAlarmDetected, this, &MainWindow::onAlarmDetected);
+            connect(m_gimbalCtrl, &GimbalController::azAlarmCleared, this, &MainWindow::onAlarmCleared);
+            connect(m_gimbalCtrl, &GimbalController::elAlarmDetected, this, &MainWindow::onAlarmDetected);
+            connect(m_gimbalCtrl, &GimbalController::elAlarmCleared, this, &MainWindow::onAlarmCleared);
 
 
     // Create a layout for whichever placeholder widget in your UI, or the central widget
@@ -135,7 +144,11 @@ void MainWindow::onSystemStateChanged(const SystemStateData &newData)
 
 void MainWindow::onActiveCameraChanged(bool isDay)
 {
-if (isDay) {
+    // Guard against redundant operations
+    if (m_isDayCameraActive == isDay)
+        return;
+
+    if (isDay) {
         // Switch to day camera
         if (m_layout->indexOf(m_cameraCtrl->getNightCameraWidget()) != -1) {
             m_layout->removeWidget(m_cameraCtrl->getNightCameraWidget());
@@ -158,6 +171,7 @@ if (isDay) {
         }
         m_isDayCameraActive = false;
     }
+    //m_cameraCtrl->setActiveCamera(m_isDayCameraActive);
 
 }
 
@@ -668,14 +682,31 @@ void MainWindow::on_fieOff_clicked()
 
 void MainWindow::on_mode_clicked()
 {
-    if (m_stateModel->data().opMode == OperationalMode::Tracking) {
+    /*if (m_stateModel->data().opMode == OperationalMode::Tracking) {
         m_stateModel->setOpMode(OperationalMode::Surveillance);
         m_stateModel->setMotionMode(MotionMode::Manual);
     }
     else {
         m_stateModel->setOpMode(OperationalMode::Tracking);
         m_stateModel->setMotionMode( MotionMode::AutoTrack );
+    }*/
+
+    const bool enteringTracking = 
+    (m_stateMachine->currentState() != SystemStateMachine::Tracking);
+
+    if (enteringTracking) {
+        // Get valid initial mode for current camera
+        const MotionMode initialMode = m_stateModel->data().activeCameraIsDay 
+            ? MotionMode::AutoTrack 
+            : MotionMode::ManualTrack;
+
+        m_stateMachine->setState(SystemStateMachine::Tracking);
+        m_stateModel->setMotionMode(initialMode);
+    } else {
+        m_stateMachine->setState(SystemStateMachine::Surveillance);
+        m_stateModel->setMotionMode(MotionMode::Manual);
     }
+
 }
 
 
@@ -697,21 +728,32 @@ void MainWindow::on_track_clicked()
 
 void MainWindow::on_motion_clicked()
 {
-    if (m_stateModel->data().opMode == OperationalMode::Surveillance) {
-        if (m_stateModel->data().motionMode == MotionMode::Manual) {
+
+    OperationalMode opMode = m_stateModel->data().opMode;
+    MotionMode motionMode = m_stateModel->data().motionMode;
+
+    if (opMode == OperationalMode::Surveillance) {
+        // cycle between Manual and Pattern
+        if (motionMode == MotionMode::Manual) {
             m_stateModel->setMotionMode(MotionMode::Pattern);
-        }
-        else {
+        } else {
             m_stateModel->setMotionMode(MotionMode::Manual);
         }
-    } else if (m_stateModel->data().opMode == OperationalMode::Tracking) {
-            if (m_stateModel->data().motionMode == MotionMode::AutoTrack) {
-            m_stateModel->setMotionMode(MotionMode::ManualTrack);
+
+    } else if (opMode == OperationalMode::Tracking) {
+        MotionMode nextMode = MotionMode::ManualTrack;
+        // Only do AutoTrack if day camera
+        if (m_stateModel->data().activeCameraIsDay) {
+            nextMode = (motionMode == MotionMode::AutoTrack)
+                ? MotionMode::ManualTrack
+                : MotionMode::AutoTrack;
         }
-        else {
-            m_stateModel->setMotionMode(MotionMode::AutoTrack);
-        }
+        m_stateModel->setMotionMode(nextMode);
+        
     }
+
+
+
 }
 
 
@@ -756,3 +798,54 @@ void MainWindow::on_autotrack_clicked()
     }
 }
 
+void MainWindow::on_day_clicked()
+{
+    m_stateModel->setActiveCameraIsDay(true);
+}
+
+
+void MainWindow::on_night_clicked()
+{
+    m_stateModel->setActiveCameraIsDay(false);
+
+}
+
+void MainWindow::on_quit_clicked()
+{
+    QCoreApplication::quit();
+
+}
+
+void MainWindow::onAlarmDetected(uint16_t alarmCode, const QString &description)
+{
+    qDebug() << "Alarm detected: " << alarmCode << description;
+    // Update UI with alarm information
+    // e.g. show alarm code and description in a dialog
+    // QMessageBox::warning(this, "Alarm Detected", QString("Alarm %1: %2").arg(alarmCode).arg(description));
+}
+
+void MainWindow::onAlarmCleared()
+{
+    qDebug() << "Alarm cleared.";
+}
+
+void MainWindow::onAlarmHistoryRead(const QList<uint16_t> &alarmHistory)
+{
+}
+
+void MainWindow::onAlarmHistoryCleared()
+{
+}
+
+void MainWindow::on_read_clicked()
+{
+    m_gimbalCtrl->readAlarms();
+}
+
+
+void MainWindow::on_clear_clicked()
+{
+    m_gimbalCtrl->clearAlarms();
+}
+
+ 

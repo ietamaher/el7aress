@@ -1,34 +1,29 @@
 QT       += core gui serialbus serialport openglwidgets dbus
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-CONFIG += c++14
 
-INCLUDEPATH += "/usr/include/vpi3"
+CONFIG += c++17
+
+#CONFIG += opengles2
+
+#INCLUDEPATH += "/usr/include/vpi3"
 INCLUDEPATH += "/opt/nvidia/vpi3/include"
-LIBS += -L/opt/nvidia/vpi3/lib/x86_64-linux-gnu -lnvvpi
+LIBS += -L/opt/nvidia/vpi3/lib/aarch64-linux-gnu -lnvvpi
+LIBS += -lSDL2
 
-# Detect architecture and set paths accordingly
-unix {
-    contains(QMAKE_HOST.arch, "x86_64") {
-        # PC-specific configurations
-        INCLUDEPATH += "/usr/local/cuda-12.2/targets/x86_64-linux/include"
-        INCLUDEPATH += "/opt/nvidia/deepstream/deepstream-6.4/sources/includes"
-        LIBS += -L/usr/local/cuda-12.2/lib64 -lcudart
-        LIBS += -L/opt/nvidia/deepstream/deepstream-6.4/lib -lnvdsgst_meta -lnvds_meta
-        LIBS += -L/usr/lib/x86_64-linux-gnu/gstreamer-1.0 -lgstxvimagesink
-    } else:contains(QMAKE_HOST.arch, "aarch64") {
+
         # Jetson-specific configurations
-        INCLUDEPATH += "/usr/local/cuda-11.4/targets/aarch64-linux/include"
-        INCLUDEPATH += "/opt/nvidia/deepstream/deepstream-6.3/sources/includes"
-        LIBS += -L/usr/local/cuda-11.4/lib64 -lcudart
-        LIBS += -L/opt/nvidia/deepstream/deepstream-6.3/lib -lnvdsgst_meta -lnvds_meta
+        INCLUDEPATH +="/usr/local/cuda-12.6/targets/aarch64-linux/include"
+        INCLUDEPATH +="/opt/nvidia/deepstream/deepstream/sources/includes"
+        LIBS += -L/usr/local/cuda-12.6/lib64 -lcudart
+        LIBS += -L/opt/nvidia/deepstream/deepstream/lib -lnvdsgst_meta -lnvds_meta
         LIBS += -L/usr/lib/aarch64-linux-gnu/tegra -lnvbufsurface -lnvbufsurftransform
-        LIBS += -L/usr/lib/aarch64-linux-gnu/gstreamer-1.0 -lgstxvimagesink
-    }
-}
+        LIBS+=-L"/usr/lib/aarch64-linux-gnu/gstreamer-1.0" -lgstxvimagesink -L"/usr/lib/aarch64-linux-gnu" -lgstbase-1.0 -lgstreamer-1.0 -lglib-2.0 -lgobject-2.0
+
 
 # Common configurations
-INCLUDEPATH += "/usr/include/opencv4"
+#INCLUDEPATH += "/usr/include/opencv4"
+INCLUDEPATH += "/usr/local/include/opencv4"
 INCLUDEPATH += "/usr/include/eigen3"
 INCLUDEPATH += "/usr/include/glib-2.0"
 INCLUDEPATH += "/usr/include/gstreamer-1.0"
@@ -43,7 +38,6 @@ PKGCONFIG += gstreamer-video-1.0
 LIBS += -lgstreamer-1.0 -lgstapp-1.0 -lgstbase-1.0 -lgobject-2.0 -lglib-2.0
 LIBS += -L/usr/local/lib -lopencv_core -lopencv_imgcodecs -lopencv_highgui -lopencv_imgproc
 
-
 PKGCONFIG += gstreamer-gl-1.0
 
 
@@ -56,6 +50,7 @@ SOURCES += \
     controllers/weaponcontroller.cpp \
     core/systemcontroller.cpp \
     core/systemstatemachine.cpp \
+    devices/basecamerapipelinedevice.cpp \
     devices/daycamerapipelinedevice.cpp \
     devices/nightcamerapipelinedevice.cpp \
     main.cpp \
@@ -86,6 +81,7 @@ HEADERS += \
     controllers/weaponcontroller.h \
     core/systemcontroller.h \
     core/systemstatemachine.h \
+    devices/basecamerapipelinedevice.h \
     devices/daycamerapipelinedevice.h \
     devices/nightcamerapipelinedevice.h \
     models/gyrodatamodel.h \

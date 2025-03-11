@@ -1,22 +1,7 @@
 #ifndef DCFTRACKERVPI_H
 #define DCFTRACKERVPI_H
 
-#include <opencv2/core.hpp>
-#include <opencv2/features2d.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/videoio.hpp>
-#include <vpi/OpenCVInterop.hpp>
-
-#include <vpi/Array.h>
-#include <vpi/Image.h>
-#include <vpi/Pyramid.h>
-#include <vpi/Status.h>
-#include <vpi/Stream.h>
-#include <vpi/algo/ConvertImageFormat.h>
-#include <vpi/algo/CropScaler.h>
-#include <vpi/algo/DCFTracker.h>
-
+// Standard C/C++ libraries
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -28,116 +13,85 @@
 #include <optional>
 #include <sstream>
 #include <vector>
+
+// OpenCV headers
+#include <opencv2/core.hpp>
+#include <opencv2/features2d.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 
-#include <cuda_gl_interop.h>
+// VPI headers
+#include <vpi/Image.h>
+#include <vpi/Stream.h>
+#include <vpi/Array.h>
+#include <vpi/algo/DCFTracker.h>
+#include <vpi/algo/CropScaler.h>
+#include <vpi/OpenCVInterop.hpp>
+#include <vpi/algo/ConvertImageFormat.h>
+
+
+// CUDA and Qt headers
 #include <cuda_runtime.h>
 #include <QObject>
 #include <QImage>
-#include <vector>
-#include <map>
-#include <opencv2/core.hpp>
 #include <QRect>
-
+ 
 
 // Macro for error checking
-#define CHECK_STATUS(STMT)                                    \
-do                                                        \
-    {                                                         \
-            VPIStatus status = (STMT);                            \
-            if (status != VPI_SUCCESS)                            \
-        {                                                     \
-                char buffer[VPI_MAX_STATUS_MESSAGE_LENGTH];       \
-                vpiGetLastStatusMessage(buffer, sizeof(buffer));  \
-                std::ostringstream ss;                            \
-                ss << vpiStatusGetName(status) << ": " << buffer; \
-                throw std::runtime_error(ss.str());               \
-        }                                                     \
-    } while (0);
-
-// Structure to store tracking information
-struct TrackInfo
-{
-    int idTarget;
-    cv::Scalar color;
-    bool enabled; // whether target is lost or not
-};
-
-// Structure to store detected target information
-struct DetectedTargetInfo
-{
-    int idTarget;
-    VPIAxisAlignedBoundingBoxF32 bbox;
-
-    bool lostTrack() const
-    {
-        return bbox.width == 0 || bbox.height == 0;
-    }
-};
-
-// idTarget -> info
-using TargetTrackInfoMap = std::map<int, TrackInfo>;
-
-// idTarget -> info
-using DetectedTargetInfoMap = std::multimap<int, DetectedTargetInfo>;
+#define CHECK_STATUS(STMT)                                   \
+do {                                                     \
+    VPIStatus status = (STMT);                           \
+    if (status != VPI_SUCCESS) {                         \
+        char buffer[VPI_MAX_STATUS_MESSAGE_LENGTH];      \
+        vpiGetLastStatusMessage(buffer, sizeof(buffer)); \
+        throw std::runtime_error(std::string(vpiStatusGetName(status)) + ": " + buffer); \
+    }                                                    \
+} while(0)
 
 class DcfTrackerVPI
 {
 public:
-    DcfTrackerVPI(VPIBackend backend = VPI_BACKEND_CUDA, int maxTrackedTargets = 10);
+    // RAII helper structure wrapping VPI resources
+    struct VPIResources {
+        VPIStream   stream      = nullptr;
+        VPIPayload  cropScale   = nullptr;
+        VPIPayload  dcf         = nullptr;
+        VPIImage    frame       = nullptr;  // for the RGBA input
+        VPIImage    wrapper     = nullptr;  // wraps the input pointer
+        VPIImage    patches     = nullptr;  // single patch used by DCF
+        VPIArray    inArray     = nullptr;  // holds 1 VPIDCFTrackedBoundingBox
+        VPIArray    outArray    = nullptr;  // ditto, for localization step
+
+        ~VPIResources();
+    };
+
+    // Constructor and destructor
+    explicit DcfTrackerVPI(VPIBackend backend = VPI_BACKEND_CUDA);
     ~DcfTrackerVPI();
 
-    // Initialize tracker with initial targets
-    //void initialize(const cv::Mat &frame, const std::vector<VPIAxisAlignedBoundingBoxF32> &initialBBoxes);
-    void initialize(uchar4* imageData, int width, int height, const QRect &initialBoundingBoxes);
+    // Initialize tracker with first frame and initial bounding box
+    void initialize(const void* imageData, int width, int height, const QRect &initialBBox);
 
-    // Process a new frame and update tracking
-    bool processFrame(uchar4* frame, int width, int height, QRect &updatedBoundingBoxes);
+    // Process new frame, updating bounding box; returns true if tracking is valid
+    bool processFrame(const void* imageData, int width, int height, QRect &trackedBBox);
 
-
-    // Get the current tracking results
-    std::vector<TrackInfo> getTrackingResults() const;
-
-    // Draw current targets on the frame
-    void drawTargets(cv::Mat &frame);
+    // (Optional) Draw bounding box on a cv::Mat for debugging
+    void drawBoundingBox(cv::Mat &frame);
 
 private:
-    // VPI resources
-    VPIPayload cropScale = nullptr;
-    VPIPayload dcf       = nullptr;
-    VPIStream stream     = nullptr;
-    VPIArray inTargets   = nullptr;
-    VPIArray outTargets  = nullptr;
-    VPIImage tgtPatches  = nullptr;
-    VPIImage vpiFrame    = nullptr;
-    VPIImage wrapper     = nullptr;
+    std::unique_ptr<VPIResources> resources;
 
-    int maxTrackedTargets;
-    int tgtPatchSize;
-    VPIBackend backend;
+    // DCF configuration parameters
+    int patchSize = 0;
+    bool trackerInitialized = false;
+    bool lost = false;
+    int frameIndex = 0;
 
-    // Target tracking information
-    TargetTrackInfoMap trackInfo;
-    DetectedTargetInfoMap targetInfoAtFrame;
-
-    // Frame size
-    cv::Size frameSize;
-
-    // Random number generator for colors
-    cv::RNG rng;
-
-    // Internal helper functions
-    void preprocessFrame(const uchar4* imageData, int width, int height);
-    bool addNewTargetsFromFrame(int idxFrame, DetectedTargetInfoMap &tgtInfos, TargetTrackInfoMap &trackInfo, VPIArrayData &targets);
-    bool detectTrackingLost(int idxFrame, DetectedTargetInfoMap &tgtInfos, VPIArrayData &targets, cv::Size frameSize);
-    bool refineTracksAtFrame(int idxFrame, DetectedTargetInfoMap &tgtInfos, VPIArrayData &targets);
-    cv::Scalar getRandomColor();
-
-    std::vector<VPIAxisAlignedBoundingBoxF32> initialBBoxes;
-    int nextFrame = 0;
-
+    // Helper functions
+    void createResources(VPIBackend backend, int width, int height);
+    void preprocessFrame(const void* imageData, int width, int height);
+    void cleanup();
 };
 
-
 #endif // DCFTRACKERVPI_H
-

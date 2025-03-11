@@ -82,6 +82,17 @@ public:
      * @return Pointer to the SystemStateModel.
      */
     SystemStateModel* systemStateModel() const { return m_stateModel; }
+    
+    void readAlarms();
+    void clearAlarms();
+
+signals:
+
+    void azAlarmDetected(uint16_t alarmCode, const QString &description);
+    void azAlarmCleared();
+    void elAlarmDetected(uint16_t alarmCode, const QString &description);
+    void elAlarmCleared();
+
 
 private slots:
     /**
@@ -89,6 +100,11 @@ private slots:
      * @param newData Updated system state.
      */
     void onSystemStateChanged(const SystemStateData &newData);
+    void onAzAlarmDetected(uint16_t alarmCode, const QString &description);
+    void onAzAlarmCleared();
+    void onElAlarmDetected(uint16_t alarmCode, const QString &description);
+    void onElAlarmCleared();
+
 
 private:
     /**

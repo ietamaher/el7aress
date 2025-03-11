@@ -51,7 +51,7 @@ void SystemController::initializeSystem()
     m_dayCamControl = new DayCameraControlDevice(this);
     m_dayCamPipeline = new DayCameraPipelineDevice(nullptr);
     m_gyroDevice = new GyroDevice(this);
-    m_joystickDevice = new JoystickDevice("/dev/input/js0", this);
+    m_joystickDevice = new JoystickDevice(this);
     m_lensDevice   = new LensDevice(this);
     m_lrfDevice   = new LRFDevice(this);
     m_nightCamControl = new NightCameraControlDevice(this);
@@ -206,6 +206,7 @@ void SystemController::initializeSystem()
     m_dayCamControl->zoomOut();
     m_dayCamControl->zoomStop(); // i added this to get initial zoom position and calculate FOV !!!
     m_nightCamControl->setDigitalZoom(0);
+    //m_joystickDevice->printJoystickGUIDs();
 
 }
 
@@ -215,8 +216,10 @@ void SystemController::showMainWindow()
     m_mainWindow = new MainWindow(m_gimbalController,
                                   m_weaponController,
                                   m_cameraController,
+                                  m_stateMachine,
                                   m_joystickController,
                                   m_systemStateModel);
     m_mainWindow->show();
+    //   m_mainWindow->showFullScreen();
 }
 

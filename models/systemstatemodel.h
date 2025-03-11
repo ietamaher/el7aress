@@ -33,6 +33,7 @@ public:
     void setDownSw(bool pressed);
     void setUpTrack(bool pressed);
     void setUpSw(bool pressed);
+    void setActiveCameraIsDay(bool pressed);
 signals:
     void dataChanged(const SystemStateData &newState);
 

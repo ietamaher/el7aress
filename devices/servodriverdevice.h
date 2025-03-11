@@ -69,6 +69,16 @@ public:
      */
     ~ServoDriverDevice();
 
+
+    struct AlarmData {
+        uint16_t alarmCode;
+        QString alarmName;
+        QString cause;
+        QString remedialAction;
+        bool canResetWithInput;
+
+    };
+
     /**
      * @brief Connects to the Modbus device.
      * @return True if initiating the connection succeeds, false otherwise.
@@ -86,6 +96,11 @@ public:
      * @param values A vector of 16-bit values to write.
      */
     void writeData(int startAddress, const QVector<quint16> &values);
+    void readAlarmHistory();
+    bool clearAlarmHistory();
+    void readAlarmStatus();
+    bool clearAlarm();
+    QString getAlarmDescription(uint16_t alarmCode);
 
 signals:
     /**
@@ -108,6 +123,11 @@ signals:
      */
     void errorOccurred(const QString &message);
 
+
+    void alarmDetected(uint16_t alarmCode, const QString &description);
+    void alarmCleared();
+    void alarmHistoryRead(const QList<uint16_t> &alarmHistory);
+    void alarmHistoryCleared();
 private slots:
     /**
      * @brief Periodically reads data from the servo driver.
@@ -154,6 +174,10 @@ private:
      */
     void updateServoData(const ServoData &newData);
 
+    void onAlarmHistoryReady();
+    void onAlarmStatusReady();
+    void onAlarmReadReady();
+
     QString m_identifier;  ///< Unique identifier for the interface instance.
     QString m_device;      ///< Serial port name.
     int m_baudRate;        ///< Baud rate.
@@ -166,6 +190,13 @@ private:
     QTimer *m_timeoutTimer  = nullptr; ///< Timer for operation timeouts.
 
     ServoData m_currentData;          ///< Tracks the current servo state.
+
+    QMap<uint16_t, AlarmData> m_alarmMap; // Map of alarm codes to their details
+    uint16_t m_currentAlarmCode = 0;
+    
+    // Initialize the alarm map
+    void initializeAlarmMap();
+    
 };
 
 #endif // SERVODRIVERDEVICE_H

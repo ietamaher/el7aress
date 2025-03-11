@@ -2,6 +2,15 @@
 #include <QDebug>
 #include <QTimer>
 
+/*
+The methods are now organized in the following order:
+1. Constructor and destructor
+2. Serial port management methods (`openSerialPort`, `closeSerialPort`, `shutdown`)
+3. Error handling methods (`handleSerialError`, `attemptReconnection`)
+4. Command sending and response handling methods (`sendCommand`, `parseLensResponse`, `updateLensData`)
+5. High-level lens control commands (`moveToWFOV`, `moveToNFOV`, `moveToIntermediateFOV`, `moveToFocalLength`, `moveToInfinityFocus`, `moveFocusNear`, `moveFocusFar`, `getFocusPosition`, `getLensTemperature`, `resetController`, `homeAxis`, `turnOnTemperatureCompensation`, `turnOffTemperatureCompensation`, `turnOnRangeCompensation`, `turnOffRangeCompensation`)
+*/
+
 LensDevice::LensDevice(QObject *parent)
     : QObject(parent),
     m_serialPort(new QSerialPort(this))
@@ -114,9 +123,6 @@ QString LensDevice::sendCommand(const QString &command)
         emit errorOccurred("LensDevice: Timeout writing command.");
         return QString();
     }
-
-    // Optionally emit a commandSent signal (for logging)
-    emit commandSent(command);
 
     // Wait for response
     if (!m_serialPort->waitForReadyRead(1000)) {

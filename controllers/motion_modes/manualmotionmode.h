@@ -18,7 +18,7 @@ public:
 
 private:
     void stopServos(GimbalController* controller);
-    void handleServoControl(ServoDriverDevice *driverInterface, int joystickInput, quint16 angularVelocity);
+    void handleServoControl(ServoDriverDevice *driverInterface, float joystickInput, quint16 angularVelocity);
     void setAcceleration(ServoDriverDevice *driverInterface, quint32 acceleration);
 
 };

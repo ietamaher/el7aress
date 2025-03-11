@@ -38,8 +38,8 @@ struct SystemStateData {
 
     // ========== Joystick & Related Controls ==========
     bool deadManSwitchActive = false;
-    int joystickAzValue = 0;
-    int joystickElValue = 0;
+    float joystickAzValue = 0.0;
+    float joystickElValue = 0.0;
     bool upSwitchButton = false;
     bool upTrackButton = false;
     bool downSwitchButton = false;
@@ -54,7 +54,7 @@ struct SystemStateData {
     double lrfDistance = 0.0;
 
     // ========== PLC21 Panel / Station Controls ==========
-    bool stationEnabled = false;
+    bool stationEnabled = true;
     bool homeSw = false;
     bool gunArmed = false;
     bool ammoLoaded = false;

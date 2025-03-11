@@ -14,6 +14,18 @@
 #include "devices/nightcamerapipelinedevice.h"
 #include "devices/lensdevice.h"
 #include "models/systemstatemodel.h"
+#include <mutex>
+
+enum CameraType {
+    DAY_CAMERA,
+    NIGHT_CAMERA
+};
+
+enum CameraMode {
+    IDLE_MODE,
+    AUTO_TRACK_MODE,
+    MANUAL_TRACK_MODE
+};
 
 /**
  * @class CameraController
@@ -72,7 +84,7 @@ public:
      * @brief Changes the pipeline processing mode based on the motion mode.
      * @param motionMode The new motion mode.
      */
-    void setProcessingMode(MotionMode motionMode);
+    void updateCameraProcessingMode();//MotionMode motionMode);
 
     /**
      * @brief Accessor for the day camera pipeline widget.
@@ -197,6 +209,9 @@ private:
 
     ProcessingMode m_processingMode; ///< Some pipeline-defined mode.
     ProcessMode    m_processMode;    ///< Defined in this class.
+        // Thread safety
+    QMutex m_mutex;
+    void ensureValidCameraModes();
 };
 
 #endif // CAMERA_CONTROLLER_H

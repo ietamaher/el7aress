@@ -46,6 +46,15 @@
 #include "utils/millenious.h"
 
 #include "utils/dcftrackervpi.h"
+// Constant for PC/Jetson
+
+
+struct OSDTextInfo {
+    int x;
+    int y;
+    std::string text;
+};
+
 
 
 // Forward Declarations
@@ -88,6 +97,9 @@ public:
     GstElement* getAppSink() const {
         return appsink;
     }
+    ProcessingMode getCurrentMode() const { return currentMode; }
+    void safeStopTracking();
+    
 signals:
     //void newFrameAvailable(uchar4* frame, int width, int height);
     void newFrameAvailable(const QByteArray &frameData, int width, int height);
@@ -131,6 +143,10 @@ private:
                               int line_width, NvOSD_ColorParams color);
     void addTextToDisplayMeta(NvDsDisplayMeta *display_meta,
                               int x, int y, const char *textChar) ;
+    void setOSDDrawingParams(int elevX, int elevY, 
+                                int highX, int highY, 
+                                int lowX, int lowY);
+    void setOSDTextItems(const std::vector<OSDTextInfo>& items);     
 
     GstElement *pipeline;
     GstElement *appsink, *glimagesink;
@@ -141,7 +157,7 @@ private:
     GstElement *aspectratiocrop;
     GstElement *queue;
     GstElement *capsfilter1;
-    GstElement *videocrop;
+    GstElement *videocrop, *nvvideoconvert_crop_scale;
     GstElement *videoscale;
     GstElement *capsfilter2, *capsfilter_nvvidconvsrc2,  *glupload;
     GstElement *capsfilter3;
@@ -218,7 +234,9 @@ private:
     NvOSD_FontParams textFontParam, textFontParam_;
 
     int m_reticle_type;
-
+    // Class member variables:
+    std::vector<OSDTextInfo> m_osdTextItems;
+    int m_elevationX, m_elevationY, m_highPointX, m_highPointY, m_lowPointX, m_lowPointY;
 
 
 };

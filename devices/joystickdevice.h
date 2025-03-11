@@ -2,10 +2,8 @@
 #define JOYSTICKHANDLER_H
 
 #include <QObject>
-#include <QSocketNotifier>
-#include <QMap>
-#include <QtGlobal>
-#include <QVector>
+#include <QTimer>
+#include <SDL2/SDL.h>
 
 // A simple data structure to hold joystick states:
 struct JoystickData {
@@ -33,22 +31,24 @@ struct JoystickData {
 };
 
 
+
 class JoystickDevice : public QObject {
     Q_OBJECT
 public:
-    explicit JoystickDevice(const QString &devicePath, QObject *parent = nullptr);
+    explicit JoystickDevice(QObject *parent = nullptr);
     ~JoystickDevice();
-
+    
+    void printJoystickGUIDs();
 signals:
     void axisMoved(int axis, int value);
     void buttonPressed(int button, bool pressed);
 
 private slots:
-    void readData();
+    void pollJoystick(); // Replaces readData()
 
 private:
-    int m_fd;
-    QSocketNotifier *m_notifier;
+    SDL_Joystick *m_joystick;
+    QTimer *m_pollTimer;
 };
 
 #endif // JOYSTICKHANDLER_H
