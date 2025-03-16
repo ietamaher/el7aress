@@ -47,6 +47,7 @@
 
 #include "utils/dcftrackervpi.h"
 #include <memory>
+#include "basecamerapipelinedevice.h"
 
 // Constant for PC/Jetson
 constexpr int USE_PC  = 0;
@@ -54,12 +55,12 @@ constexpr int USE_PC  = 0;
 class QThread;
 
 // Class Declaration
-class DayCameraPipelineDevice : public QWidget
+class DayCameraPipelineDevice : public BaseCameraPipelineDevice
 {
     Q_OBJECT
 
 public:
-    explicit DayCameraPipelineDevice(QWidget *parent = nullptr);
+    explicit DayCameraPipelineDevice(const std::string& devicePath, QWidget *parent);
     ~DayCameraPipelineDevice();
 
     // Public Methods
@@ -95,6 +96,10 @@ public:
 
     ProcessingMode getCurrentMode() const { return currentMode; }
     void safeStopTracking();
+    bool initialize() override;
+    QString getDeviceName() const override;
+
+
 signals:
     //void newFrameAvailable(uchar4* frame, int width, int height);
     void newFrameAvailable(const QByteArray &frameData, int width, int height);
@@ -115,8 +120,8 @@ public slots:
     void onSystemStateChanged(const SystemStateData &state);
 private:
     // Private Methods
-    void buildPipeline();
-    static GstFlowReturn on_new_sample(GstAppSink *sink, gpointer data);
+    void buildPipeline() override;
+    //static GstFlowReturn on_new_sample(GstAppSink *sink, gpointer data);
     static GstPadProbeReturn osd_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
     static GstPadProbeReturn tracker_sink_pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
     // static GstPadProbeReturn nvtracker_src_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
@@ -126,10 +131,6 @@ private:
     static void onBusMessage(GstBus *bus, GstMessage *msg, gpointer user_data);
     void handleEOS();
     void handleError(GstMessage *msg);
-    void onReticleStyleChanged(const QString &style);
-    void onColorStyleChanged(const QString &style);
-
-    void renderReticle(NvDsDisplayMeta *display_meta);
     void busThreadFunction();
     bool setPipelineStateWithTimeout(GstElement* pipeline, GstState state, GstClockTime timeout = 5 * GST_SECOND);
 
@@ -142,7 +143,7 @@ private:
     GstElement *pipeline;
     GstElement *appsink, *glimagesink;
     GstElement *source;
-    GstElement *sink;
+    //GstElement *sink;
     GstElement *transform;
     GstElement *streammux;
     GstElement *aspectratiocrop;

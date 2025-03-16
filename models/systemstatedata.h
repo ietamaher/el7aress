@@ -122,6 +122,7 @@ struct SystemStateData {
     bool requesTrackingRestart = false;
     double  targetAz = 0;
     double  targetEl = 0;
+    bool trackingActive = false;
 
 
     // ================= Helper Functions =================
@@ -208,8 +209,8 @@ struct SystemStateData {
             startTracking == other.startTracking &&
             requesTrackingRestart == other.requesTrackingRestart &&
             targetAz == other.targetAz &&
-            targetEl == other.targetEl
-
+            targetEl == other.targetEl &&
+            trackingActive == other.trackingActive
             );
     }
     bool operator!=(const SystemStateData &other) const {

@@ -189,6 +189,7 @@ void SystemStateModel::setTrackingStarted(bool start)
 {
     SystemStateData newData = m_data;
     newData.startTracking = start;
+    newData.trackingActive = start;
     updateData(newData);
 }
 

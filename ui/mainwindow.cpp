@@ -148,33 +148,25 @@ void MainWindow::onActiveCameraChanged(bool isDay)
     if (m_isDayCameraActive == isDay)
         return;
 
+    // Update widgets based on active camera
     if (isDay) {
         // Switch to day camera
-        if (m_layout->indexOf(m_cameraCtrl->getNightCameraWidget()) != -1) {
-            m_layout->removeWidget(m_cameraCtrl->getNightCameraWidget());
-            m_cameraCtrl->getNightCameraWidget()->setVisible(false);
-        }
-        if (m_layout->indexOf(m_cameraCtrl->getDayCameraWidget()) == -1) {
-            m_layout->addWidget(m_cameraCtrl->getDayCameraWidget());
-            m_cameraCtrl->getDayCameraWidget()->setVisible(true);
-        }
-        m_isDayCameraActive = true;
+        switchCameraWidget(
+            m_cameraCtrl->getNightCameraWidget(),
+            m_cameraCtrl->getDayCameraWidget()
+        );
     } else {
         // Switch to night camera
-        if (m_layout->indexOf(m_cameraCtrl->getDayCameraWidget()) != -1) {
-            m_layout->removeWidget(m_cameraCtrl->getDayCameraWidget());
-            m_cameraCtrl->getDayCameraWidget()->setVisible(false);
-        }
-        if (m_layout->indexOf(m_cameraCtrl->getNightCameraWidget()) == -1) {
-            m_layout->addWidget(m_cameraCtrl->getNightCameraWidget());
-            m_cameraCtrl->getNightCameraWidget()->setVisible(true);
-        }
-        m_isDayCameraActive = false;
+        switchCameraWidget(
+            m_cameraCtrl->getDayCameraWidget(),
+            m_cameraCtrl->getNightCameraWidget()
+        );
     }
-    //m_cameraCtrl->setActiveCamera(m_isDayCameraActive);
 
+    // Update state
+    m_isDayCameraActive = isDay;
 }
-
+//m_cameraCtrl->setActiveCamera(m_isDayCameraActive);
 void MainWindow::onUpSwChanged()
 {
 
@@ -713,7 +705,8 @@ void MainWindow::on_mode_clicked()
 void MainWindow::on_track_clicked()
 {
     if (m_stateModel->data().motionMode == MotionMode::ManualTrack) {
-        if (!m_stateModel->data().startTracking) {
+        m_cameraCtrl->startTracking();
+        /*if (!m_stateModel->data().startTracking) {
             m_stateModel->setTrackingStarted(true);
             qDebug() << "Joystick pressed: starting tracking.";
         } else {
@@ -721,7 +714,7 @@ void MainWindow::on_track_clicked()
             m_stateModel->setTrackingRestartRequested(false);
             m_stateModel->setTrackingRestartRequested(true);
             qDebug() << "Joystick pressed: tracking restart requested.";
-        }
+        }*/
     }
 }
 
@@ -782,7 +775,8 @@ void MainWindow::on_down_clicked()
 
 void MainWindow::on_autotrack_clicked()
 {
-    if (m_stateModel->data().motionMode == MotionMode::ManualTrack) {
+    m_cameraCtrl->startTracking();
+    /*if (m_stateModel->data().motionMode == MotionMode::ManualTrack) {
         if (!m_stateModel->data().startTracking) {
             m_stateModel->setTrackingStarted(true);
             qDebug() << "Joystick pressed: starting tracking.";
@@ -795,12 +789,31 @@ void MainWindow::on_autotrack_clicked()
     }
     else if (m_stateModel->data().motionMode == MotionMode::AutoTrack){
         onTrackSelectButtonPressed();
+    }*/
+}
+
+
+void MainWindow::switchCameraWidget(QWidget* fromWidget, QWidget* toWidget)
+{
+    // Remove the old widget if it exists in the layout
+    if (fromWidget && m_layout->indexOf(fromWidget) != -1) {
+        m_layout->removeWidget(fromWidget);
+        fromWidget->setVisible(false);
+    }
+
+    // Add the new widget if it's not already in the layout
+    if (toWidget && m_layout->indexOf(toWidget) == -1) {
+        m_layout->addWidget(toWidget);
+        toWidget->setVisible(true);
     }
 }
 
 void MainWindow::on_day_clicked()
 {
-    m_stateModel->setActiveCameraIsDay(true);
+    // Let the state model handle the camera switching logic
+    if (m_stateModel) {
+        m_stateModel->setActiveCameraIsDay(!m_isDayCameraActive);
+    }
 }
 
 

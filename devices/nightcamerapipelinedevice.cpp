@@ -9,47 +9,17 @@
 #include <gst/gstdebugutils.h>
 
 
-NightCameraPipelineDevice::NightCameraPipelineDevice(QWidget *parent)
-    : QWidget(parent),
-      pipeline(nullptr),
-      appsink(nullptr),
-      source(nullptr),
-      bus(nullptr),
-      busWatchId(0),
-      currentMode(MODE_TRACKING),
-      updatedBBox(0,0,0,0),
-      glDisplay(nullptr),
-      glContext(nullptr),
-      trackerInitialized(false),
-      setTrackState(false),
-      _tracker(nullptr),
-      m_reticle_type (1),
-      m_currentReticleStyle("Crosshair"),
-      m_currentColorStyle("Green")
-
+NightCameraPipelineDevice::NightCameraPipelineDevice(const std::string &devicePath, QWidget *parent)
+    : BaseCameraPipelineDevice(devicePath, parent)
 {
     gst_init(nullptr, nullptr);
-    VPIBackend backend = VPI_BACKEND_CUDA; // or VPI_BACKEND_PVA based on your requirements
-    int maxTargets = 1;
-    _tracker = new DcfTrackerVPI(backend);
-    ManualObject manual_bbox;
-    manual_bbox.left = 430;
-    manual_bbox.top = 320;
-    manual_bbox.width = 100;
-    manual_bbox.height = 100;
+    // Set camera parameters for day camera
+    cameraParams.focalLength = 1000.0;  // Example focal length
+    cameraParams.principalPoint = QPoint(640, 360);  // For 1280x720 resolution
+    cameraParams.rotation.setToIdentity();
+    cameraParams.position = QVector3D(0.0, 0.0, 0.0);  // Origin position
 
-
-    fontColor = {0.0, 0.72, 0.3, 1.0};
-    //fontColor = {1.0, 1.0, 1.0, 1.0};
-    //fontColor = {0.0, 0.94, 0.27, 1.0};
-    textShadowColor = {0.0, 0.0, 0.0, 0.65};
-    textFontParam.font_name = "Courier New Semi-Bold";
-    textFontParam.font_color= fontColor;
-    textFontParam.font_size = 13;
-
-    lineColor = {0.0, 0.7, 0.3, 1.0};
-    //lineColor = {0.2, 0.8, 0.2, 1.0};
-    shadowLineColor = {0.0, 0.0, 0.0, 0.65};
+    qDebug() << "CameraSystem instance created:" << this;
 
     qDebug() << "CameraSystem instance created:" << this;
 
@@ -59,7 +29,31 @@ NightCameraPipelineDevice::~NightCameraPipelineDevice()
 {
     stop();
 }
+bool NightCameraPipelineDevice::initialize()
+{
+    try {
+        // Create VPI DCF Tracker
+        dcfTracker = std::make_unique<DcfTrackerVPI>(VPI_BACKEND_CUDA);
+        qDebug() << "VPI DCF Tracker created for DayCamera" << devicePath.c_str();
 
+        // Setup GStreamer pipeline
+        buildPipeline();
+
+        // The pipeline is already set to PLAYING in setupGstreamerPipeline
+        // No need to set it again here
+
+        qDebug() << "DayCamera initialized:" << devicePath.c_str();
+        return true;
+    } catch (const std::exception& e) {
+        qCritical() << "Failed to initialize DayCamera:" << e.what();
+        return false;
+    }
+}
+
+QString NightCameraPipelineDevice::getDeviceName() const
+{
+    return QString("DayCamera (%1)").arg(devicePath.c_str());
+}
 void NightCameraPipelineDevice::start()
 {
 
@@ -309,7 +303,7 @@ void NightCameraPipelineDevice::buildPipeline(){
 
 }
 
-void NightCameraPipelineDevice::onReticleStyleChanged(const QString &style)
+/*void NightCameraPipelineDevice::onReticleStyleChanged(const QString &style)
 {
     // Update the reticle rendering parameters based on the new style
     m_currentReticleStyle = style;
@@ -396,7 +390,7 @@ void NightCameraPipelineDevice::renderReticle(NvDsDisplayMeta *display_meta)
         // Draw default reticle
     }
 }
-
+*/
 void NightCameraPipelineDevice::setTracker()
 {
 

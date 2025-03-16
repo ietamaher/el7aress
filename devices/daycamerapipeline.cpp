@@ -8,7 +8,7 @@
 #include <gst/gl/gstglmemory.h>
 
 DayCameraPipelineDevice::DayCameraPipelineDevice(DataModel *dataModel, QWidget *parent)
-    : QWidget(parent),
+    : BaseCameraPipelineDevice(parent),
     m_dataModel(dataModel),
     pipeline(nullptr),
     appsink(nullptr),

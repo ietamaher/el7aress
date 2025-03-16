@@ -12,13 +12,13 @@ LIBS += -L/opt/nvidia/vpi3/lib/aarch64-linux-gnu -lnvvpi
 LIBS += -lSDL2
 
 
-        # Jetson-specific configurations
-        INCLUDEPATH +="/usr/local/cuda-12.6/targets/aarch64-linux/include"
-        INCLUDEPATH +="/opt/nvidia/deepstream/deepstream/sources/includes"
-        LIBS += -L/usr/local/cuda-12.6/lib64 -lcudart
-        LIBS += -L/opt/nvidia/deepstream/deepstream/lib -lnvdsgst_meta -lnvds_meta
-        LIBS += -L/usr/lib/aarch64-linux-gnu/tegra -lnvbufsurface -lnvbufsurftransform
-        LIBS+=-L"/usr/lib/aarch64-linux-gnu/gstreamer-1.0" -lgstxvimagesink -L"/usr/lib/aarch64-linux-gnu" -lgstbase-1.0 -lgstreamer-1.0 -lglib-2.0 -lgobject-2.0
+# Jetson-specific configurations
+INCLUDEPATH +="/usr/local/cuda-12.6/targets/aarch64-linux/include"
+INCLUDEPATH +="/opt/nvidia/deepstream/deepstream/sources/includes"
+LIBS += -L/usr/local/cuda-12.6/lib64 -lcudart
+LIBS += -L/opt/nvidia/deepstream/deepstream/lib -lnvdsgst_meta -lnvds_meta
+LIBS += -L/usr/lib/aarch64-linux-gnu/tegra -lnvbufsurface -lnvbufsurftransform
+LIBS+=-L"/usr/lib/aarch64-linux-gnu/gstreamer-1.0" -lgstxvimagesink -L"/usr/lib/aarch64-linux-gnu" -lgstbase-1.0 -lgstreamer-1.0 -lglib-2.0 -lgobject-2.0
 
 
 # Common configurations
@@ -110,6 +110,7 @@ HEADERS += \
     models/systemstatemodel.h \
     utils/millenious.h \
     utils/dcftrackervpi.h \
+    utils/targetstate.h \
     utils/videoglwidget_gl.h
 
 FORMS += \

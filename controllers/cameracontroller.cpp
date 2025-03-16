@@ -1,4 +1,3 @@
-
 #include "cameracontroller.h"
 #include <QDebug>
 
@@ -7,7 +6,7 @@ CameraController::CameraController(DayCameraControlDevice* dayControl,
                                    NightCameraControlDevice* nightControl,
                                    NightCameraPipelineDevice* nightPipeline,
                                    LensDevice* lensDevice,
-                                   SystemStateModel *stateModel,
+                                   SystemStateModel* stateModel,
                                    QObject* parent)
     : QObject(parent),
     m_dayControl(dayControl),
@@ -15,132 +14,293 @@ CameraController::CameraController(DayCameraControlDevice* dayControl,
     m_nightControl(nightControl),
     m_nightPipeline(nightPipeline),
     m_lensDevice(lensDevice),
+    m_stateModel(stateModel),
     m_isDayCameraActive(true),
     m_processingMode(MODE_IDLE),
-    m_processMode(IdleMode),
-    m_stateModel(stateModel)
+    m_processMode(IdleMode)
 {
+    // Connect system state changes
     if (m_stateModel) {
         connect(m_stateModel, &SystemStateModel::dataChanged,
-                this,         &CameraController::onSystemStateChanged);
+                this, &CameraController::onSystemStateChanged);
+
+        // Initialize active camera from state model
+        m_isDayCameraActive = m_stateModel->data().activeCameraIsDay;
     }
 
+    // Start camera pipelines
     if (m_dayPipeline) {
-        m_dayPipeline->start();
-        connect(m_dayPipeline, &DayCameraPipelineDevice::trackingRestartProcessed,
-                this,          &CameraController::onTrackingRestartProcessed);
-        connect(m_dayPipeline, &DayCameraPipelineDevice::trackingStartProcessed,
-                this,          &CameraController::onTrackingStartProcessed);
-        connect(m_dayPipeline, &DayCameraPipelineDevice::trackedTargetsUpdated,
-                this,          &CameraController::onTrackedIdsUpdated, Qt::QueuedConnection);
-        connect(m_dayPipeline, &DayCameraPipelineDevice::selectedTrackLost,
-                this,          &CameraController::onSelectedTrackLost);
-        connect(m_dayPipeline, &DayCameraPipelineDevice::targetPositionUpdated,
-                this,          &CameraController::onTargetPositionUpdated);
+        m_dayPipeline->initialize();
     }
 
     if (m_nightPipeline) {
-        m_nightPipeline->start();
-    }
-
-    if (m_stateModel) {
-        m_isDayCameraActive = m_stateModel->data().activeCameraIsDay;
+        m_nightPipeline->initialize();
     }
 }
 
 CameraController::~CameraController()
 {
-    // Cleanup if needed.
+    // Ensure tracking is stopped on both cameras
+    if (m_dayPipeline && m_dayPipeline->isTracking()) {
+        safeStopTracking(m_dayPipeline);
+    }
+
+    if (m_nightPipeline && m_nightPipeline->isTracking()) {
+        safeStopTracking(m_nightPipeline);
+    }
+}
+
+bool CameraController::initialize()
+{
+    bool success = true;
+
+    // Initialize day camera
+    if (m_dayPipeline && !m_dayPipeline->initialize()) {
+        qCritical() << "Failed to initialize day camera";
+        success = false;
+    } else if (m_dayPipeline) {
+        // Connect signals only once
+        connect(m_dayPipeline, &DayCameraPipelineDevice::trackingRestartProcessed,
+                this, &CameraController::onTrackingRestartProcessed);
+        connect(m_dayPipeline, &DayCameraPipelineDevice::trackingStartProcessed,
+                this, &CameraController::onTrackingStartProcessed);
+        connect(m_dayPipeline, &DayCameraPipelineDevice::trackedTargetsUpdated,
+                this, &CameraController::onTrackedIdsUpdated, Qt::QueuedConnection);
+        connect(m_dayPipeline, &DayCameraPipelineDevice::selectedTrackLost,
+                this, &CameraController::onSelectedTrackLost);
+        connect(m_dayPipeline, &DayCameraPipelineDevice::targetPositionUpdated,
+                this, &CameraController::onTargetPositionUpdated);
+        connect(m_dayPipeline, &BaseCameraPipelineDevice::trackingLost,
+                this, [this]() {
+                    updateStatus("Tracking lost on day camera");
+                    if (m_stateModel) {
+                        // Use proper method to update state model
+                        SystemStateData data = m_stateModel->data();
+                        //data.trackingActive = false;
+                        //m_stateModel->setData(data);
+                        m_stateModel->setTrackingStarted(false);
+                    }
+                    updateCameraProcessingMode();
+                    emit stateChanged();
+                });
+    }
+
+    // Initialize night camera
+    if (m_nightPipeline && !m_nightPipeline->initialize()) {
+        qCritical() << "Failed to initialize night camera";
+        success = false;
+    } else if (m_nightPipeline) {
+        // Connect night camera tracking lost signal
+        connect(m_nightPipeline, &BaseCameraPipelineDevice::trackingLost,
+                this, [this]() {
+                    updateStatus("Tracking lost on night camera");
+                    if (m_stateModel) {
+                        SystemStateData data = m_stateModel->data();
+                        data.trackingActive = false;
+                        //m_stateModel->setData(data);
+                        m_stateModel->setTrackingStarted(false);
+                    }
+                    updateCameraProcessingMode();
+                    emit stateChanged();
+                });
+    }
+
+    if (success) {
+        updateStatus("Cameras initialized successfully");
+        // Set initial processing mode
+        updateCameraProcessingMode();
+    } else {
+        updateStatus("Failed to initialize one or more cameras");
+    }
+
+    return success;
+}
+
+BaseCameraPipelineDevice* CameraController::getDayCamera() const
+{
+    return m_dayPipeline;
+}
+
+BaseCameraPipelineDevice* CameraController::getNightCamera() const
+{
+    return m_nightPipeline;
+}
+
+BaseCameraPipelineDevice* CameraController::getActiveCamera() const
+{
+    return m_isDayCameraActive ?
+        static_cast<BaseCameraPipelineDevice*>(m_dayPipeline) :
+        static_cast<BaseCameraPipelineDevice*>(m_nightPipeline);
+}
+
+bool CameraController::startTracking()
+{
+    BaseCameraPipelineDevice* camera = getActiveCamera();
+    if (!camera) {
+        updateStatus("No active camera available");
+        return false;
+    }
+
+    // Start tracking on the active camera
+    if (!camera->startTracking()) {
+        updateStatus("Failed to start tracking on " + camera->getDeviceName());
+        return false;
+    }
+
+    // Update system state
+    if (m_stateModel) {
+        SystemStateData data = m_stateModel->data();
+        data.trackingActive = true;
+        m_stateModel->setTrackingStarted(true);
+    }
+
+    updateStatus("Tracking started on " + camera->getDeviceName());
+    updateCameraProcessingMode();
+    emit stateChanged();
+
+    return true;
+}
+
+void CameraController::stopTracking()
+{
+    BaseCameraPipelineDevice* camera = getActiveCamera();
+    if (camera) {
+        safeStopTracking(camera);
+    }
+
+    // Update system state
+    if (m_stateModel) {
+        SystemStateData data = m_stateModel->data();
+        data.trackingActive = false;
+        m_stateModel->setTrackingStarted(false);
+    }
+
+    updateCameraProcessingMode();
+    updateStatus("Tracking stopped");
+    emit stateChanged();
+}
+
+bool CameraController::switchCamera()
+{
+    if (!m_stateModel) {
+        updateStatus("System state model not available");
+        return false;
+    }
+
+    // Get current state
+    SystemStateData currentState = m_stateModel->data();
+
+    // Toggle active camera in the state model
+    bool wasDay = currentState.activeCameraIsDay;
+    currentState.activeCameraIsDay = !wasDay;
+
+    // Update state model - this will trigger onSystemStateChanged
+    //m_stateModel->setData(currentState);
+
+    // Get references to the cameras
+    BaseCameraPipelineDevice* fromCamera = wasDay ?
+        static_cast<BaseCameraPipelineDevice*>(m_dayPipeline) :
+        static_cast<BaseCameraPipelineDevice*>(m_nightPipeline);
+
+    BaseCameraPipelineDevice* toCamera = !wasDay ?
+        static_cast<BaseCameraPipelineDevice*>(m_dayPipeline) :
+        static_cast<BaseCameraPipelineDevice*>(m_nightPipeline);
+
+    // If tracking is active, perform handoff
+    if (currentState.trackingActive && fromCamera && fromCamera->isTracking()) {
+        updateStatus("Performing target handoff...");
+
+        bool handoffSuccess = performTargetHandoff(fromCamera, toCamera);
+
+        if (handoffSuccess) {
+            updateStatus("Target handoff successful to " + toCamera->getDeviceName());
+
+            // Update motion mode based on camera capabilities
+            if (!wasDay) { // Switching to day camera
+                // Keep current motion mode if compatible with day camera
+            } else { // Switching to night camera
+                // Night camera only supports manual tracking
+                currentState.motionMode = MotionMode::ManualTrack;
+                //m_stateModel->setData(currentState);
+            }
+        } else {
+            updateStatus("Target handoff failed, continuing with new camera");
+            currentState.trackingActive = false;
+            //m_stateModel->setData(currentState);
+
+            // Ensure tracking is stopped on both cameras
+            safeStopTracking(fromCamera);
+            safeStopTracking(toCamera);
+        }
+    } else {
+        // If we're not tracking, make sure the old camera stops tracking
+        if (fromCamera && fromCamera->isTracking()) {
+            safeStopTracking(fromCamera);
+        }
+
+        updateStatus("Switched to " + (toCamera ? toCamera->getDeviceName() : "unknown camera"));
+    }
+
+    // Update camera processing modes
+    updateCameraProcessingMode();
+
+    // Notify of state change
+    //emit stateChanged();
+    //emit activeCameraChanged(currentState.activeCameraIsDay);
+
+    return true;
 }
 
 void CameraController::onSystemStateChanged(const SystemStateData &newData)
 {
     QMutexLocker locker(&m_mutex);
-    
+
     bool needsUpdate = false;
-    
+
     // Check for camera change
     if (m_oldState.activeCameraIsDay != newData.activeCameraIsDay) {
         m_isDayCameraActive = newData.activeCameraIsDay;
-        setActiveCamera(true);
         needsUpdate = true;
-        
-        // If in tracking mode, ensure valid tracking mode for the camera
-        if (newData.opMode == OperationalMode::Tracking) {
-            ensureValidCameraModes();
-        }
     }
-    
+
     // Check for motion mode change
-    if (m_oldState.motionMode != newData.motionMode || 
+    if (m_oldState.motionMode != newData.motionMode ||
         m_oldState.opMode != newData.opMode) {
         needsUpdate = true;
     }
-    
+
     // Update the cached state
     m_oldState = newData;
-    
+
     // Update processing mode if needed
     if (needsUpdate) {
         updateCameraProcessingMode();
     }
 }
 
-void CameraController::setActiveCamera(bool isDayCamera)
+void CameraController::updateStatus(const QString& message)
 {
- 
-    //if (isDayCamera == m_isDayCameraActive) return;
-
-
-
-
-    qDebug() << "Switching camera from" << (m_isDayCameraActive ? "day" : "night") 
-             << "to" << (isDayCamera ? "day" : "night");
-             
-    // First, safely shut down any active tracking on the current camera
-    if (m_isDayCameraActive) {
-        // Switching from day to night camera
-        if (m_dayPipeline) {
-            // Properly cleanup resources before switching
-            m_dayPipeline->setProcessingMode(MODE_IDLE);
-            m_dayPipeline->clearTrackingState();
-            m_dayPipeline->safeStopTracking();
-
-        }
-    } else if (!m_isDayCameraActive) {
-        // Switching from night to day camera
-        if (m_nightPipeline) {
-            // Properly cleanup resources before switching
-            m_nightPipeline->setProcessingMode(MODE_IDLE);
-            m_nightPipeline->safeStopTracking();
-        }
-    }
-
-    // Now update the active camera flag
-    //m_isDayCameraActive = isDayCamera;
-    
-    // Update processing modes based on current state
-    updateCameraProcessingMode();
-    
-    // Notify others of the change
-    //emit activeCameraChanged(m_isDayCameraActive);
+    statusMessage = message;
+    qDebug() << "Status:" << message;
+    //emit statusUpdated(message);
 }
 
 void CameraController::updateCameraProcessingMode()
 {
-    const auto stateData = m_stateModel->data();
+    // Determine camera modes based on operational mode and active camera
     ProcessingMode dayMode = MODE_IDLE;
     ProcessingMode nightMode = MODE_IDLE;
-    guint interval = 10000;  // Default interval
-    
+
+    // Get current state
+    SystemStateData currentState = m_stateModel ? m_stateModel->data() : SystemStateData();
+
     // Determine camera modes based on operational mode and active camera
-    if (stateData.opMode == OperationalMode::Tracking) {
-        if (stateData.activeCameraIsDay) {
+    if (currentState.opMode == OperationalMode::Tracking) {
+        if (m_isDayCameraActive) {
             // Day camera is active in tracking mode
-            switch (stateData.motionMode) {
+            switch (currentState.motionMode) {
                 case MotionMode::AutoTrack:
                     dayMode = MODE_TRACKING;
-                    interval = 0; // No delay for auto-tracking
                     break;
                 case MotionMode::ManualTrack:
                     dayMode = MODE_MANUAL_TRACKING;
@@ -154,103 +314,183 @@ void CameraController::updateCameraProcessingMode()
             nightMode = MODE_MANUAL_TRACKING;
         }
     }
-    
-    // Apply modes to each pipeline safely
-    if (m_dayPipeline) {
-        // Only change mode if it's different
-        if (m_dayPipeline->getCurrentMode() != dayMode) {
-            // If changing from tracking to idle, clean up first
-            if (m_dayPipeline->getCurrentMode() != MODE_IDLE && dayMode == MODE_IDLE) {
-                m_dayPipeline->safeStopTracking();
-            }
-            
-            m_dayPipeline->setPGIEInterval(interval);
-            m_dayPipeline->setProcessingMode(dayMode);
-            
-            qDebug() << "Day camera mode changed to:" 
-                     << (dayMode == MODE_IDLE ? "IDLE" : 
-                        (dayMode == MODE_TRACKING ? "AUTO_TRACK" : "MANUAL_TRACK"));
-        }
+
+    // Apply modes to each camera
+    setDayCameraProcessingMode(dayMode);
+    setNightCameraProcessingMode(nightMode);
+}
+
+void CameraController::setDayCameraProcessingMode(ProcessingMode mode)
+{
+    if (!m_dayPipeline) return;
+
+    // Only update if the mode is changing
+    if (dayCameraMode == mode) return;
+
+    // Log the mode change
+    qDebug() << "Day camera mode changing from:"
+             << (dayCameraMode == MODE_IDLE ? "IDLE" :
+                (dayCameraMode == MODE_TRACKING ? "MODE_TRACKING" : "MANUAL_TRACKING"))
+             << "to:"
+             << (mode == MODE_IDLE ? "IDLE" :
+                (mode == MODE_TRACKING ? "MODE_TRACKING" : "MANUAL_TRACKING"));
+
+    // If we're switching to idle mode and tracking was active, stop tracking
+    if (mode == MODE_IDLE && m_dayPipeline->isTracking()) {
+        safeStopTracking(m_dayPipeline);
     }
     
-    if (m_nightPipeline) {
-        // Only change mode if it's different
-        if (m_nightPipeline->getCurrentMode() != nightMode) {
-            // If changing from tracking to idle, clean up first
-            if (m_nightPipeline->getCurrentMode() != MODE_IDLE && nightMode == MODE_IDLE) {
-                m_nightPipeline->safeStopTracking();
-            }
-            
-            m_nightPipeline->setProcessingMode(nightMode);
-            
-            qDebug() << "Night camera mode changed to:" 
-                     << (nightMode == MODE_IDLE ? "IDLE" : "MANUAL_TRACK");
+    // Set the processing mode on the pipeline
+    //m_dayPipeline->setProcessingMode(mode);
+
+    // Update the stored mode
+    dayCameraMode = mode;
+
+    // Emit signal to notify of state change
+    emit stateChanged();
+}
+
+void CameraController::setNightCameraProcessingMode(ProcessingMode mode)
+{
+    if (!m_nightPipeline) return;
+
+    // Only update if the mode is changing
+    if (nightCameraMode == mode) return;
+
+    // Log the mode change
+    qDebug() << "Night camera mode changing from:"
+             << (nightCameraMode == MODE_IDLE ? "IDLE" : "MANUAL_TRACKING")
+             << "to:"
+             << (mode == MODE_IDLE ? "IDLE" : "MANUAL_TRACKING");
+
+    // If we're switching to idle mode and tracking was active, stop tracking
+    if (mode == MODE_IDLE && m_nightPipeline->isTracking()) {
+        safeStopTracking(m_nightPipeline);
+    }
+    
+    // Set the processing mode on the pipeline
+    m_nightPipeline->setProcessingMode(mode);
+
+    // Update the stored mode
+    nightCameraMode = mode;
+
+    // Emit signal to notify of state change
+    emit stateChanged();
+}
+
+void CameraController::safeStopTracking(BaseCameraPipelineDevice* camera)
+{
+    if (camera) {
+        try {
+            camera->stopTracking();
+        } catch (const std::exception& e) {
+            qCritical() << "Error stopping tracking:" << e.what();
         }
     }
 }
 
-void CameraController::ensureValidCameraModes()
+bool CameraController::performTargetHandoff(BaseCameraPipelineDevice* fromCamera, BaseCameraPipelineDevice* toCamera)
 {
-    const auto stateData = m_stateModel->data();
-    
-    // If in tracking mode, ensure valid motion mode for the active camera
-    if (stateData.opMode == OperationalMode::Tracking) {
-        MotionMode validMode;
-        
-        if (m_isDayCameraActive) {
-            // Day camera supports both Auto and Manual tracking
-            // Keep current mode if valid, or default to AutoTrack
-            if (stateData.motionMode != MotionMode::AutoTrack && 
-                stateData.motionMode != MotionMode::ManualTrack) {
-                validMode = MotionMode::AutoTrack;  // Default
-            } else {
-                return; // Current mode is valid
-            }
-        } else {
-            // Night camera only supports Manual tracking
-            if (stateData.motionMode != MotionMode::ManualTrack) {
-                validMode = MotionMode::ManualTrack;
-            } else {
-                return; // Current mode is valid
-            }
+    if (!fromCamera || !toCamera || !fromCamera->isTracking()) {
+        qWarning() << "Cannot perform handoff: invalid camera or tracking not active";
+        return false;
+    }
+
+    try {
+        // Get current target state from source camera
+        const TargetState& sourceState = fromCamera->getTargetState();
+
+        // Transform target position to world coordinates
+        // This would use the camera parameters to convert from image to world coordinates
+        const BaseCameraPipelineDevice::CameraParameters& fromParams = fromCamera->getCameraParameters();
+        const BaseCameraPipelineDevice::CameraParameters& toParams = toCamera->getCameraParameters();
+
+        // Get the 3D position from the source camera
+        QVector3D worldPos = sourceState.position;
+
+        // Transform to target camera coordinates
+        // This is a simplified transformation - in a real system, you would use proper 3D transformations
+        QVector3D relativePos = worldPos - toParams.position;
+
+        // Project the 3D point onto the target camera's image plane
+        // This is a simplified projection - in a real system, you would use proper camera projection
+        double focalLength = toParams.focalLength;
+        QPoint principalPoint = toParams.principalPoint;
+
+        // Simple pinhole camera model projection
+        int targetX = static_cast<int>(principalPoint.x() + (relativePos.x() / relativePos.z()) * focalLength);
+        int targetY = static_cast<int>(principalPoint.y() + (relativePos.y() / relativePos.z()) * focalLength);
+
+        // Use the same size as the source bounding box
+        int width = sourceState.bbox.width();
+        int height = sourceState.bbox.height();
+
+        // Create the target bounding box
+        QRect targetBBox(targetX - width/2, targetY - height/2, width, height);
+
+        // Initialize tracking in target camera with transformed position
+        bool initSuccess = toCamera->initializeTracking(targetBBox);
+        if (!initSuccess) {
+            qWarning() << "Failed to initialize tracking in target camera";
+            return false;
         }
-        
-        // Update state model with valid mode
-        QMetaObject::invokeMethod(m_stateModel, [this, validMode]() {
-            m_stateModel->setMotionMode(validMode);
-        }, Qt::QueuedConnection);
+
+        // Validate the handoff
+        const TargetState& targetState = toCamera->getTargetState();
+        bool isValid = validateTargetHandoff(sourceState, targetState);
+
+        if (!isValid) {
+            // If validation fails, stop tracking in target camera
+            safeStopTracking(toCamera);
+            qWarning() << "Target handoff validation failed";
+            return false;
+        }
+
+        // Stop tracking in source camera
+        safeStopTracking(fromCamera);
+
+        return true;
+    } catch (const std::exception& e) {
+        qCritical() << "Error during target handoff:" << e.what();
+        return false;
     }
 }
 
-void CameraController::setTracker()
+bool CameraController::validateTargetHandoff(const TargetState& oldState, const TargetState& newState)
 {
-    //QMutexLocker locker(&m_mutex);
-    
-    if (m_isDayCameraActive) {
-        if (m_dayPipeline) {
-            // Check if in appropriate mode first
-            auto mode = m_dayPipeline->getCurrentMode();
-            if (mode == MODE_TRACKING || mode == MODE_MANUAL_TRACKING) {
-                m_dayPipeline->setTracker();
-                qDebug() << "Set tracker for day camera";
-            } else {
-                qWarning() << "Cannot set tracker: Day camera not in tracking mode";
-            }
-        }
-    } else {
-        if (m_nightPipeline) {
-            // Check if in appropriate mode first
-            auto mode = m_nightPipeline->getCurrentMode();
-            if (mode == MODE_MANUAL_TRACKING) {
-                m_nightPipeline->setTracker();
-                qDebug() << "Set tracker for night camera";
-            } else {
-                qWarning() << "Cannot set tracker: Night camera not in tracking mode";
-            }
-        }
-    }
+    // Compare visual features
+    float similarity = computeFeatureSimilarity(oldState.visualFeatures, newState.visualFeatures);
+
+    // Threshold for accepting the handoff
+    const float SIMILARITY_THRESHOLD = 0.7f;
+
+    return similarity >= SIMILARITY_THRESHOLD;
 }
-// Basic camera control commands.
+
+float CameraController::computeFeatureSimilarity(const std::vector<float>& features1, const std::vector<float>& features2)
+{
+    // Simple cosine similarity between feature vectors
+    if (features1.empty() || features2.empty() || features1.size() != features2.size()) {
+        return 0.0f;
+    }
+
+    float dotProduct = 0.0f;
+    float norm1 = 0.0f;
+    float norm2 = 0.0f;
+
+    for (size_t i = 0; i < features1.size(); ++i) {
+        dotProduct += features1[i] * features2[i];
+        norm1 += features1[i] * features1[i];
+        norm2 += features2[i] * features2[i];
+    }
+
+    if (norm1 <= 0.0f || norm2 <= 0.0f) {
+        return 0.0f;
+    }
+
+    return dotProduct / (std::sqrt(norm1) * std::sqrt(norm2));
+}
+
 void CameraController::zoomIn()
 {
     if (m_isDayCameraActive) {

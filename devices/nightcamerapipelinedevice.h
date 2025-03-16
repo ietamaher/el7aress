@@ -48,6 +48,7 @@
 #include "utils/dcftrackervpi.h"
 // Constant for PC/Jetson
 
+#include "basecamerapipelinedevice.h"
 
 struct OSDTextInfo {
     int x;
@@ -60,14 +61,13 @@ struct OSDTextInfo {
 // Forward Declarations
 class QThread;
 
-// Class Declaration
-class NightCameraPipelineDevice : public QWidget
-{
+class NightCameraPipelineDevice : public BaseCameraPipelineDevice {
     Q_OBJECT
 
 public:
-    explicit NightCameraPipelineDevice(QWidget *parent = nullptr);
-    ~NightCameraPipelineDevice();
+    explicit NightCameraPipelineDevice(const std::string& devicePath, QWidget *parent);
+    ~NightCameraPipelineDevice() override;
+
 
     // Public Methods
     void start();
@@ -100,6 +100,9 @@ public:
     ProcessingMode getCurrentMode() const { return currentMode; }
     void safeStopTracking();
     
+    bool initialize() override;
+    QString getDeviceName() const override;
+
 signals:
     //void newFrameAvailable(uchar4* frame, int width, int height);
     void newFrameAvailable(const QByteArray &frameData, int width, int height);
@@ -120,7 +123,7 @@ public slots:
 
 private:
     // Private Methods
-    void buildPipeline();
+    void buildPipeline() override;
     static GstFlowReturn on_new_sample(GstAppSink *sink, gpointer data);
     static GstPadProbeReturn osd_sink_pad_buffer_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u_data);
     static GstPadProbeReturn tracker_sink_pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
@@ -131,10 +134,7 @@ private:
     static void onBusMessage(GstBus *bus, GstMessage *msg, gpointer user_data);
     void handleEOS();
     void handleError(GstMessage *msg);
-    void onReticleStyleChanged(const QString &style);
-    void onColorStyleChanged(const QString &style);
 
-    void renderReticle(NvDsDisplayMeta *display_meta);
     void busThreadFunction();
     bool setPipelineStateWithTimeout(GstElement* pipeline, GstState state, GstClockTime timeout = 5 * GST_SECOND);
 

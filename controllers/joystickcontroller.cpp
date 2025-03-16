@@ -67,7 +67,7 @@ void JoystickController::onButtonChanged(int button, bool pressed)
     case 18:
         if (pressed) {
             if (m_stateMachine->currentState() == SystemStateMachine::Tracking) {
-                m_cameraController->setTracker();
+                //m_cameraController->setTracker();
             }
         }
         break;

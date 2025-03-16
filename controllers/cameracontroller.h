@@ -8,6 +8,8 @@
 
 #include <QObject>
 #include <QSet>
+
+#include "devices/basecamerapipelinedevice.h"
 #include "devices/daycameracontroldevice.h"
 #include "devices/daycamerapipelinedevice.h"
 #include "devices/nightcameracontroldevice.h"
@@ -75,10 +77,6 @@ public:
      */
     void setSelectedTrackId(int trackId);
 
-    /**
-     * @brief Initializes or sets up a tracking algorithm.
-     */
-    void setTracker();
 
     /**
      * @brief Changes the pipeline processing mode based on the motion mode.
@@ -98,12 +96,22 @@ public:
      */
     NightCameraPipelineDevice* getNightCameraWidget() const { return m_nightPipeline; }
 
+    // Initialize cameras
+    bool initialize();
+
+    // Access individual cameras
+    BaseCameraPipelineDevice* getDayCamera() const;
+    BaseCameraPipelineDevice* getNightCamera() const;
+    BaseCameraPipelineDevice* getActiveCamera() const;
+    bool startTracking();
+    bool switchCamera();
+
 public slots:
     /**
      * @brief Switches active camera between day and night.
      * @param useDay True to use the day camera; false to use the night camera.
      */
-    void setActiveCamera(bool useDay);
+    //void setActiveCamera(bool useDay);
 
     /**
      * @brief Indicates if the day camera is currently active.
@@ -168,7 +176,7 @@ signals:
      * @param y The Y position.
      */
     void targetPositionUpdated(double x, double y);
-
+    void stateChanged();
 private slots:
     /**
      * @brief Reacts to a position update from the pipeline.
@@ -212,6 +220,20 @@ private:
         // Thread safety
     QMutex m_mutex;
     void ensureValidCameraModes();
+    void setDayCameraProcessingMode(ProcessingMode mode);
+    void setNightCameraProcessingMode(ProcessingMode mode);
+    void updateStatus(const QString &message);
+
+    // Current processing modes
+    ProcessingMode dayCameraMode = MODE_IDLE;
+    ProcessingMode nightCameraMode = MODE_IDLE;
+      QString statusMessage;
+      void safeStopTracking(BaseCameraPipelineDevice camera);
+      void stopTracking();
+      void safeStopTracking(BaseCameraPipelineDevice *camera);
+      float computeFeatureSimilarity(const std::vector<float> &features1, const std::vector<float> &features2);
+      bool validateTargetHandoff(const TargetState &oldState, const TargetState &newState);
+      bool performTargetHandoff(BaseCameraPipelineDevice *fromCamera, BaseCameraPipelineDevice *toCamera);
 };
 
 #endif // CAMERA_CONTROLLER_H

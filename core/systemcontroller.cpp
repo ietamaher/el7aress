@@ -49,19 +49,20 @@ void SystemController::initializeSystem()
 {
     // 1) Create devices
     m_dayCamControl = new DayCameraControlDevice(this);
-    m_dayCamPipeline = new DayCameraPipelineDevice(nullptr);
+    m_dayCamPipeline = new DayCameraPipelineDevice("/dev/video0", nullptr);
     m_gyroDevice = new GyroDevice(this);
     m_joystickDevice = new JoystickDevice(this);
     m_lensDevice   = new LensDevice(this);
     m_lrfDevice   = new LRFDevice(this);
     m_nightCamControl = new NightCameraControlDevice(this);
-    m_nightCamPipeline = new NightCameraPipelineDevice(nullptr);
+    m_nightCamPipeline = new NightCameraPipelineDevice("/dev/video1", nullptr);
     m_plc21Device = new Plc21Device("/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if00", 115200, 31, this);
     m_plc42Device = new Plc42Device("/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if02", 115200, 31, this);
     m_servoActuatorDevice = new ServoActuatorDevice(this);
     m_servoAzDevice = new ServoDriverDevice("az", "/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if04", 230400, 2, this);
     m_servoElDevice = new ServoDriverDevice("el", "/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if06", 230400, 1, this);
-
+    //m_dayCamPipeline = std::make_unique<DayCameraPipelineDevice>("/dev/video1", nullptr);
+    //m_nightCamPipeline = std::make_unique<NightCameraPipelineDevice>("/dev/video1", nullptr);
 
     // 2) Create data models
     m_dayCamControlModel    = new DayCameraDataModel(this);

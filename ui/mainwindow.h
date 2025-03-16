@@ -159,7 +159,8 @@ private:
 
     void setTracklistColorStyle(const QString &style);
     void onTrackIdSelected(QListWidgetItem *current, QListWidgetItem *previous);
- };
+    void switchCameraWidget(QWidget *fromWidget, QWidget *toWidget);
+};
 
 #endif // MAINWINDOW_H
 
