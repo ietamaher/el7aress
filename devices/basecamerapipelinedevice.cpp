@@ -238,11 +238,6 @@ void BaseCameraPipelineDevice::processFrame(const guint8 *data, int width, int h
         return;
     }
     
-    // Debug the first few bytes of data
-    qDebug() << "Camera" << devicePath.c_str() << "data first bytes:" 
-            << static_cast<int>(data[0]) << static_cast<int>(data[1]) 
-            << static_cast<int>(data[2]) << static_cast<int>(data[3]);
-    
     // Create a QImage from the raw data (assuming RGBA format)
     QImage newFrame(data, width, height, width * 4, QImage::Format_RGBA8888);
     
@@ -250,7 +245,7 @@ void BaseCameraPipelineDevice::processFrame(const guint8 *data, int width, int h
         qWarning() << "Failed to create QImage from frame data for" << devicePath.c_str();
         return;
     }
-    /*static int frameCounter = 0;
+   /*static int frameCounter = 0;
     QString filename = QString("/tmp/camera_frame_%1_%2.png")
                        .arg(QString::fromStdString(devicePath).replace("/", "_"))
                        .arg(frameCounter++);
@@ -259,13 +254,21 @@ void BaseCameraPipelineDevice::processFrame(const guint8 *data, int width, int h
         qDebug() << "Saved frame to" << filename;
     } else {
         qWarning() << "Failed to save frame to" << filename;
-    }*/
+    } */
     // Store a copy of the frame
-    currentFrame = newFrame.copy();
+
+    QImage frameCopy = newFrame.copy();
+    
+    // Store the frame copy
+    {
+        QMutexLocker locker(&frameMutex);  // Assuming you have a mutex to protect the frame
+        currentFrame = frameCopy;
+    }
+ 
     
     // If tracking is enabled, update the tracker with the new frame
     if (trackingEnabled && dcfTracker) {
-        qDebug() << "Updating tracking for" << devicePath.c_str() << "with new frame";
+        //qDebug() << "Updating tracking for" << devicePath.c_str() << "with new frame";
         try {
             // Update the tracker with the new frame
             QRect newBBox = trackedBBox;
@@ -285,7 +288,7 @@ void BaseCameraPipelineDevice::processFrame(const guint8 *data, int width, int h
                 extractTargetFeatures(currentFrame, newBBox);
                 updateTargetPosition(currentTarget);
                 
-                qDebug() << "Tracking updated for" << devicePath.c_str() << "- new bbox:" << newBBox;
+                //qDebug() << "Tracking updated for" << devicePath.c_str() << "- new bbox:" << newBBox;
             } else {
                 qWarning() << "Tracking update failed for" << devicePath.c_str() << "- invalid bbox:" << newBBox;
                 handleTrackingFailure();
@@ -295,6 +298,8 @@ void BaseCameraPipelineDevice::processFrame(const guint8 *data, int width, int h
             handleTrackingFailure();
         }
     }
+    // Emit the new frame with the image data
+    emit newFrameAvailable(currentFrame);
     
     // Notify that a new frame is available
     emit frameUpdated();

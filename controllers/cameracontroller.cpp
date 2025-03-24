@@ -2,12 +2,12 @@
 #include <QDebug>
 
 CameraController::CameraController(DayCameraControlDevice* dayControl,
-                                   DayCameraPipelineDevice* dayPipeline,
-                                   NightCameraControlDevice* nightControl,
-                                   NightCameraPipelineDevice* nightPipeline,
-                                   LensDevice* lensDevice,
-                                   SystemStateModel* stateModel,
-                                   QObject* parent)
+    DayCameraPipelineDevice* dayPipeline,
+    NightCameraControlDevice* nightControl,
+    NightCameraPipelineDevice* nightPipeline,
+    LensDevice* lensDevice, 
+    SystemStateModel* stateModel,
+    QObject* parent)
     : QObject(parent),
     m_dayControl(dayControl),
     m_dayPipeline(dayPipeline),
@@ -17,23 +17,41 @@ CameraController::CameraController(DayCameraControlDevice* dayControl,
     m_stateModel(stateModel),
     m_isDayCameraActive(true),
     m_processingMode(MODE_IDLE),
-    m_processMode(IdleMode)
+    m_processMode(IdleMode),
+    m_dayDisplayWidget(new VideoDisplayWidget),
+    m_nightDisplayWidget(new VideoDisplayWidget)
 {
+    // Setup display widgets with proper names
+    m_dayDisplayWidget->setObjectName("DayCameraDisplay");
+    m_nightDisplayWidget->setObjectName("NightCameraDisplay");
+
+    // Configure initial visibility - only active camera should be visible
+    m_dayDisplayWidget->setVisible(m_isDayCameraActive);
+    m_nightDisplayWidget->setVisible(!m_isDayCameraActive);
+
     // Connect system state changes
     if (m_stateModel) {
         connect(m_stateModel, &SystemStateModel::dataChanged,
-                this, &CameraController::onSystemStateChanged);
+        this, &CameraController::onSystemStateChanged);
 
         // Initialize active camera from state model
         m_isDayCameraActive = m_stateModel->data().activeCameraIsDay;
+
+        // Update widget visibility based on initial state
+        m_dayDisplayWidget->setVisible(m_isDayCameraActive);
+        m_nightDisplayWidget->setVisible(!m_isDayCameraActive);
     }
 
-    // Start camera pipelines
+    // Connect pipeline frame signals directly to the display widgets
     if (m_dayPipeline) {
+        connect(m_dayPipeline, &BaseCameraPipelineDevice::newFrameAvailable,
+        this, &CameraController::onDayCameraFrameAvailable);
         m_dayPipeline->initialize();
     }
 
     if (m_nightPipeline) {
+        connect(m_nightPipeline, &BaseCameraPipelineDevice::newFrameAvailable,
+        this, &CameraController::onNightCameraFrameAvailable);
         m_nightPipeline->initialize();
     }
 }
@@ -48,6 +66,8 @@ CameraController::~CameraController()
     if (m_nightPipeline && m_nightPipeline->isTracking()) {
         safeStopTracking(m_nightPipeline);
     }
+    delete m_dayDisplayWidget;
+    delete m_nightDisplayWidget;
 }
 
 bool CameraController::initialize()
@@ -70,6 +90,8 @@ bool CameraController::initialize()
                 this, &CameraController::onSelectedTrackLost);
         connect(m_dayPipeline, &DayCameraPipelineDevice::targetPositionUpdated,
                 this, &CameraController::onTargetPositionUpdated);
+ 
+
         connect(m_dayPipeline, &BaseCameraPipelineDevice::trackingLost,
                 this, [this]() {
                     updateStatus("Tracking lost on day camera");
@@ -83,6 +105,9 @@ bool CameraController::initialize()
                     updateCameraProcessingMode();
                     emit stateChanged();
                 });
+
+
+
     }
 
     // Initialize night camera
@@ -90,6 +115,7 @@ bool CameraController::initialize()
         qCritical() << "Failed to initialize night camera";
         success = false;
     } else if (m_nightPipeline) {
+
         // Connect night camera tracking lost signal
         connect(m_nightPipeline, &BaseCameraPipelineDevice::trackingLost,
                 this, [this]() {
@@ -103,6 +129,7 @@ bool CameraController::initialize()
                     updateCameraProcessingMode();
                     emit stateChanged();
                 });
+
     }
 
     if (success) {
@@ -116,6 +143,172 @@ bool CameraController::initialize()
     return success;
 }
 
+bool CameraController::switchCamera()
+{
+    if (!m_stateModel) {
+        updateStatus("System state model not available");
+        return false;
+    }
+
+    // Get current state
+    SystemStateData currentState = m_stateModel->data();
+
+    // Toggle active camera in the state model
+    bool wasDay = currentState.activeCameraIsDay;
+    currentState.activeCameraIsDay = !wasDay;
+
+    // Update state model via the proper method
+    m_stateModel->setActiveCameraIsDay(currentState.activeCameraIsDay);
+
+    // Update our internal state
+    m_isDayCameraActive = currentState.activeCameraIsDay;
+
+    // Get references to the cameras
+    BaseCameraPipelineDevice* fromCamera = wasDay ?
+        static_cast<BaseCameraPipelineDevice*>(m_dayPipeline) :
+        static_cast<BaseCameraPipelineDevice*>(m_nightPipeline);
+
+    BaseCameraPipelineDevice* toCamera = !wasDay ?
+        static_cast<BaseCameraPipelineDevice*>(m_dayPipeline) :
+        static_cast<BaseCameraPipelineDevice*>(m_nightPipeline);
+
+    // Update display widget visibility
+    m_dayDisplayWidget->setVisible(m_isDayCameraActive);
+    m_nightDisplayWidget->setVisible(!m_isDayCameraActive);
+
+    // If tracking is active, perform handoff
+    if (currentState.trackingActive && fromCamera && fromCamera->isTracking()) {
+        updateStatus("Performing target handoff...");
+
+        bool handoffSuccess = performTargetHandoff(fromCamera, toCamera);
+
+        if (handoffSuccess) {
+            updateStatus("Target handoff successful to " + toCamera->getDeviceName());
+
+            // Update motion mode based on camera capabilities
+            if (!wasDay) { // Switching to day camera
+                // Keep current motion mode if compatible with day camera
+            } else { // Switching to night camera
+                // Night camera only supports manual tracking
+                currentState.motionMode = MotionMode::ManualTrack;
+                //m_stateModel->setData(currentState);
+            }
+        } else {
+            updateStatus("Target handoff failed, continuing with new camera");
+            currentState.trackingActive = false;
+            //m_stateModel->setData(currentState);
+
+            // Ensure tracking is stopped on both cameras
+            safeStopTracking(fromCamera);
+            safeStopTracking(toCamera);
+        }
+    } else {
+        // If we're not tracking, make sure the old camera stops tracking
+        if (fromCamera && fromCamera->isTracking()) {
+            safeStopTracking(fromCamera);
+        }
+
+        updateStatus("Switched to " + (toCamera ? toCamera->getDeviceName() : "unknown camera"));
+    }
+
+    // Update camera processing modes
+    updateCameraProcessingMode();
+    
+    // Emit signal notifying camera change
+    //emit activeCameraChanged(m_isDayCameraActive);
+    //emit stateChanged();
+    
+    updateStatus("Camera switched to " + (m_isDayCameraActive ? 
+                                         QString("Day (") + m_dayPipeline->getDeviceName() + ")" : 
+                                         QString("Night (") + m_nightPipeline->getDeviceName() + ")"));
+    
+    return true;
+}
+
+VideoDisplayWidget* CameraController::getDayCameraDisplay() const
+{
+    return m_dayDisplayWidget;
+}
+
+VideoDisplayWidget* CameraController::getNightCameraDisplay() const
+{
+    return m_nightDisplayWidget;
+}
+
+VideoDisplayWidget* CameraController::getActiveCameraDisplay() const
+{
+    return m_isDayCameraActive ? m_dayDisplayWidget : m_nightDisplayWidget;
+}
+
+void CameraController::onDayCameraFrameAvailable(const QImage& frame)
+{
+    //qDebug() << "Day camera frame received:" << frame.width() << "x" << frame.height()
+     //        << (frame.isNull() ? "NULL" : "valid");
+    
+    if (m_dayDisplayWidget) {
+        // Create a deep copy of the frame to ensure data ownership
+        QImage frameCopy = frame.copy();
+        m_dayDisplayWidget->updateFrame(frameCopy);
+        
+        // Debug the widget state
+        //qDebug() << "Day display updated, widget:" << m_dayDisplayWidget->objectName()
+        //         << "frame:" << frameCopy.width() << "x" << frameCopy.height();
+    }
+    
+    emit newFrameAvailable(frame, true);
+}
+
+void CameraController::onNightCameraFrameAvailable(const QImage& frame)
+{
+    //qDebug() << "Night camera frame received:" << frame.width() << "x" << frame.height()
+     //        << (frame.isNull() ? "NULL" : "valid");
+    
+    if (m_nightDisplayWidget) {
+        // Create a deep copy of the frame to ensure data ownership
+        QImage frameCopy = frame.copy();
+        m_nightDisplayWidget->updateFrame(frameCopy);
+        
+        // Debug the widget state
+        //qDebug() << "Night display updated, widget:" << m_nightDisplayWidget->objectName()
+         //        << "frame:" << frameCopy.width() << "x" << frameCopy.height();
+    }
+    
+    emit newFrameAvailable(frame, false);
+}
+
+void CameraController::onSystemStateChanged(const SystemStateData &newData)
+{
+    QMutexLocker locker(&m_mutex);
+
+    bool needsUpdate = false;
+
+    // Check for camera change
+    if (m_oldState.activeCameraIsDay != newData.activeCameraIsDay) {
+        m_isDayCameraActive = newData.activeCameraIsDay;
+        needsUpdate = true;
+    }
+
+    // Check for motion mode change
+    if (m_oldState.motionMode != newData.motionMode ||
+        m_oldState.opMode != newData.opMode) {
+        needsUpdate = true;
+    }
+
+    // Update the cached state
+    m_oldState = newData;
+
+    // Update processing mode if needed
+    if (needsUpdate) {
+        updateCameraProcessingMode();
+    }
+}
+
+void CameraController::updateStatus(const QString& message)
+{
+    statusMessage = message;
+    qDebug() << "Status:" << message;
+    //emit statusUpdated(message);
+}
 BaseCameraPipelineDevice* CameraController::getDayCamera() const
 {
     return m_dayPipeline;
@@ -180,110 +373,7 @@ void CameraController::stopTracking()
     emit stateChanged();
 }
 
-bool CameraController::switchCamera()
-{
-    if (!m_stateModel) {
-        updateStatus("System state model not available");
-        return false;
-    }
 
-    // Get current state
-    SystemStateData currentState = m_stateModel->data();
-
-    // Toggle active camera in the state model
-    bool wasDay = currentState.activeCameraIsDay;
-    currentState.activeCameraIsDay = !wasDay;
-
-    // Update state model - this will trigger onSystemStateChanged
-    //m_stateModel->setData(currentState);
-
-    // Get references to the cameras
-    BaseCameraPipelineDevice* fromCamera = wasDay ?
-        static_cast<BaseCameraPipelineDevice*>(m_dayPipeline) :
-        static_cast<BaseCameraPipelineDevice*>(m_nightPipeline);
-
-    BaseCameraPipelineDevice* toCamera = !wasDay ?
-        static_cast<BaseCameraPipelineDevice*>(m_dayPipeline) :
-        static_cast<BaseCameraPipelineDevice*>(m_nightPipeline);
-
-    // If tracking is active, perform handoff
-    if (currentState.trackingActive && fromCamera && fromCamera->isTracking()) {
-        updateStatus("Performing target handoff...");
-
-        bool handoffSuccess = performTargetHandoff(fromCamera, toCamera);
-
-        if (handoffSuccess) {
-            updateStatus("Target handoff successful to " + toCamera->getDeviceName());
-
-            // Update motion mode based on camera capabilities
-            if (!wasDay) { // Switching to day camera
-                // Keep current motion mode if compatible with day camera
-            } else { // Switching to night camera
-                // Night camera only supports manual tracking
-                currentState.motionMode = MotionMode::ManualTrack;
-                //m_stateModel->setData(currentState);
-            }
-        } else {
-            updateStatus("Target handoff failed, continuing with new camera");
-            currentState.trackingActive = false;
-            //m_stateModel->setData(currentState);
-
-            // Ensure tracking is stopped on both cameras
-            safeStopTracking(fromCamera);
-            safeStopTracking(toCamera);
-        }
-    } else {
-        // If we're not tracking, make sure the old camera stops tracking
-        if (fromCamera && fromCamera->isTracking()) {
-            safeStopTracking(fromCamera);
-        }
-
-        updateStatus("Switched to " + (toCamera ? toCamera->getDeviceName() : "unknown camera"));
-    }
-
-    // Update camera processing modes
-    updateCameraProcessingMode();
-
-    // Notify of state change
-    //emit stateChanged();
-    //emit activeCameraChanged(currentState.activeCameraIsDay);
-
-    return true;
-}
-
-void CameraController::onSystemStateChanged(const SystemStateData &newData)
-{
-    QMutexLocker locker(&m_mutex);
-
-    bool needsUpdate = false;
-
-    // Check for camera change
-    if (m_oldState.activeCameraIsDay != newData.activeCameraIsDay) {
-        m_isDayCameraActive = newData.activeCameraIsDay;
-        needsUpdate = true;
-    }
-
-    // Check for motion mode change
-    if (m_oldState.motionMode != newData.motionMode ||
-        m_oldState.opMode != newData.opMode) {
-        needsUpdate = true;
-    }
-
-    // Update the cached state
-    m_oldState = newData;
-
-    // Update processing mode if needed
-    if (needsUpdate) {
-        updateCameraProcessingMode();
-    }
-}
-
-void CameraController::updateStatus(const QString& message)
-{
-    statusMessage = message;
-    qDebug() << "Status:" << message;
-    //emit statusUpdated(message);
-}
 
 void CameraController::updateCameraProcessingMode()
 {

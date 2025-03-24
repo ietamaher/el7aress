@@ -13,7 +13,7 @@ NightCameraPipelineDevice::NightCameraPipelineDevice(const std::string &devicePa
     : BaseCameraPipelineDevice(devicePath, parent)
 {
     gst_init(nullptr, nullptr);
-    // Set camera parameters for day camera
+    // Set camera parameters for night camera
     cameraParams.focalLength = 1000.0;  // Example focal length
     cameraParams.principalPoint = QPoint(640, 360);  // For 1280x720 resolution
     cameraParams.rotation.setToIdentity();
@@ -34,7 +34,7 @@ bool NightCameraPipelineDevice::initialize()
     try {
         // Create VPI DCF Tracker
         dcfTracker = std::make_unique<DcfTrackerVPI>(VPI_BACKEND_CUDA);
-        qDebug() << "VPI DCF Tracker created for DayCamera" << devicePath.c_str();
+        qDebug() << "VPI DCF Tracker created for nightCamera" << devicePath.c_str();
 
         // Setup GStreamer pipeline
         buildPipeline();
@@ -42,17 +42,17 @@ bool NightCameraPipelineDevice::initialize()
         // The pipeline is already set to PLAYING in setupGstreamerPipeline
         // No need to set it again here
 
-        qDebug() << "DayCamera initialized:" << devicePath.c_str();
+        qDebug() << "nightCamera initialized:" << devicePath.c_str();
         return true;
     } catch (const std::exception& e) {
-        qCritical() << "Failed to initialize DayCamera:" << e.what();
+        qCritical() << "Failed to initialize nightCamera:" << e.what();
         return false;
     }
 }
 
 QString NightCameraPipelineDevice::getDeviceName() const
 {
-    return QString("DayCamera (%1)").arg(devicePath.c_str());
+    return QString("nightCamera (%1)").arg(devicePath.c_str());
 }
 void NightCameraPipelineDevice::start()
 {
@@ -116,190 +116,178 @@ void NightCameraPipelineDevice::onSystemStateChanged(const SystemStateData &stat
 
 void NightCameraPipelineDevice::buildPipeline(){
 
-    GstElement *pipeline = NULL;
-      GstBus *bus = NULL;
-      guint bus_watch_id;
+     // Create a GStreamer pipeline with a single appsink for display and processing
+     GstBus *bus = NULL;
 
-    /* Create pipeline */
-    pipeline = gst_pipeline_new("deepstream-camera-app");
-    if (!pipeline) {
-    g_printerr("Pipeline could not be created. Exiting.\n");
-    }
-
-    /* Create elements */
-    GstElement *source = gst_element_factory_make("v4l2src", "night_camera-source");
-    GstElement *capsfilter1 = gst_element_factory_make("capsfilter", "night_src-cap-filter1");
-    GstElement *nvvidconv1 = gst_element_factory_make("nvvideoconvert", "night_nvvideo-converter1");
-    GstElement *capsfilter2 = gst_element_factory_make("capsfilter", "night_src-cap-filter2");
-    GstElement *streammux = gst_element_factory_make("nvstreammux", "night_stream-muxer");
-    GstElement *nvvidconv2 = gst_element_factory_make("nvvideoconvert", "night_nvvideo-converter2");
-    GstElement *rgb_caps = gst_element_factory_make("capsfilter", "night_rgb-caps-filter");
-    GstElement *nvosd = gst_element_factory_make("nvdsosd", "night_nv-onscreendisplay");
-    GstElement *tee = gst_element_factory_make("tee", "night_tee");
-    GstElement *queue_sink1 = gst_element_factory_make("queue", "night_queue_sink1");
-    GstElement *queue_sink2 = gst_element_factory_make("queue", "night_queue_sink2");
-    GstElement *nvegltransform = gst_element_factory_make("nvegltransform", "night_nvegl-transform");
-    GstElement *appsink = gst_element_factory_make("appsink", "night_app-sink");
-    GstElement *sink = gst_element_factory_make("nveglglessink", "night_nvvideo-renderer");
-    GstElement *logger = gst_element_factory_make("nvdslogger", "night_nvds_logger-renderer");
-
-    /* Check if elements could be created */
-    if (!source || !capsfilter1 || !nvvidconv1 || !capsfilter2 || !streammux ||
-         !nvvidconv2 || !nvosd || !tee || !queue_sink1 ||
-        !queue_sink2 || !nvegltransform || !appsink || !sink) {
-    g_printerr("One or more elements could not be created. Exiting.\n");
-    }
-
-    /* Set properties for source */
-    g_object_set(G_OBJECT(source), "device", "/dev/video1", "do-timestamp", TRUE, NULL);
-
-    /* Set caps for source */
-    GstCaps *caps1 = gst_caps_new_simple("video/x-raw",
-                                        "format", G_TYPE_STRING, "YUY2",
-                                        "width", G_TYPE_INT, 1280,
-                                        "height", G_TYPE_INT, 720,
-                                        "framerate", GST_TYPE_FRACTION, 30, 1,
-                                        NULL);
-    g_object_set(G_OBJECT(capsfilter1), "caps", caps1, NULL);
-    gst_caps_unref(caps1);
-
-    /* Set properties for nvvideoconvert */
-    g_object_set(G_OBJECT(nvvidconv1), "copy-hw", 2, NULL);
-    g_object_set(G_OBJECT(nvvidconv1), "src-crop", "162:0:960:720", NULL);
-
-    /* Set caps for nvvideoconvert output */
-    GstCaps *caps2 = gst_caps_new_simple("video/x-raw",
-                                        "format", G_TYPE_STRING, "RGBA",
-                                        "width", G_TYPE_INT, 960,
-                                        "height", G_TYPE_INT, 720,
-                                        NULL);
-    GstCapsFeatures *features = gst_caps_features_new("memory:NVMM", NULL);
-    gst_caps_set_features(caps2, 0, features);
-    g_object_set(G_OBJECT(capsfilter2), "caps", caps2, NULL);
-    gst_caps_unref(caps2);
-
-    /* Set properties for streammux */
-    g_object_set(G_OBJECT(streammux), "batch-size", 1, NULL);
-    g_object_set(G_OBJECT(streammux), "width", 960, NULL);
-    g_object_set(G_OBJECT(streammux), "height", 720, NULL);
-    g_object_set(G_OBJECT(streammux), "batched-push-timeout", 30000, NULL);
-    g_object_set(G_OBJECT(streammux), "live-source", TRUE, NULL);
-
-
-    /* Set caps for RGB output */
-    /*GstCaps *rgb_caps_spec = gst_caps_new_simple("video/x-raw",
-                "format", G_TYPE_STRING, "RGBA",
-                NULL);
-    features = gst_caps_features_new("memory:NVMM", NULL);
-    gst_caps_set_features(rgb_caps_spec, 0, features);
-    g_object_set(G_OBJECT(rgb_caps), "caps", rgb_caps_spec, NULL);
-    gst_caps_unref(rgb_caps_spec);*/
-
-
-    /* Set properties for display sink */
-    g_object_set(G_OBJECT(sink), "sync", FALSE, "async", TRUE, "show-latency", TRUE, NULL);
-
-    /* Configure appsink properties */
-    g_object_set(G_OBJECT(appsink), "emit-signals", TRUE, "async", FALSE, "sync", FALSE, NULL);
-    gst_app_sink_set_max_buffers(GST_APP_SINK(appsink), 1);
-    gst_app_sink_set_drop(GST_APP_SINK(appsink), TRUE);
-
-    /* Add callback for appsink new-sample signal */
-    g_signal_connect(appsink, "new-sample", G_CALLBACK(on_new_sample), this);
-
-    /* Add message handler for pipeline */
-    bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
-    //bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
-    gst_object_unref(bus);
-
-    /* Add all elements to pipeline */
-    gst_bin_add_many(GST_BIN(pipeline), source, capsfilter1, nvvidconv1, capsfilter2,
-                    streammux, nvvidconv2,  nvosd, tee,
-                    queue_sink1, queue_sink2, nvegltransform, logger, sink, appsink, NULL);
-
-    /* Link elements for the main stream path */
-    if (!gst_element_link_many(source, capsfilter1, nvvidconv1, capsfilter2, NULL)) {
-    g_printerr("Elements could not be linked (1). Exiting.\n");
-    }
-
-    /* Link streammux manually using request pads */
-    GstPad *srcpad = gst_element_get_static_pad(capsfilter2, "src");
-    GstPad *sinkpad = gst_element_request_pad_simple(streammux, "sink_0");
-
-    if (gst_pad_link(srcpad, sinkpad) != GST_PAD_LINK_OK) {
-    g_printerr("Failed to link capsfilter2 to streammux. Exiting.\n");
-
-    }
-    gst_object_unref(srcpad);
-    gst_object_unref(sinkpad);
-
-    /* Link from streammux through tracker */
-    if (!gst_element_link_many(streammux, nvvidconv2,  nvosd, tee, NULL)) {
-    g_printerr("Elements could not be linked (2). Exiting.\n");
-    }
-
-    /* Link tee to egl sink branch */
-    GstPad *tee_src_pad1 = gst_element_request_pad_simple(tee, "src_0");
-    GstPad *queue_sink_pad1 = gst_element_get_static_pad(queue_sink1, "sink");
-    if (gst_pad_link(tee_src_pad1, queue_sink_pad1) != GST_PAD_LINK_OK) {
-    g_printerr("Tee could not be linked to sink queue1. Exiting.\n");
-    }
-    gst_object_unref(queue_sink_pad1);
-    gst_object_unref(tee_src_pad1);
-
-    /* Link queue to eglsink */
-    if (!gst_element_link_many(queue_sink1, nvegltransform, logger, sink, NULL)) {
-    g_printerr("Elements could not be linked (3). Exiting.\n");
-    }
-
-    /* Link tee to appsink branch */
-    GstPad *tee_src_pad2 = gst_element_request_pad_simple(tee, "src_1");
-    GstPad *queue_sink_pad2 = gst_element_get_static_pad(queue_sink2, "sink");
-    if (gst_pad_link(tee_src_pad2, queue_sink_pad2) != GST_PAD_LINK_OK) {
-    g_printerr("Tee could not be linked to sink queue2. Exiting.\n");
-    }
-    gst_object_unref(queue_sink_pad2);
-    gst_object_unref(tee_src_pad2);
-
-    /* Link queue to appsink */
-    if (!gst_element_link_many(queue_sink2, appsink, NULL)) {
-    g_printerr("Elements could not be linked (4). Exiting.\n");
-    }
-    // Set window handle for display (using glimagesink)
-    this->winId();
-    gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(sink), (guintptr)this->winId());
-
-    // Optionally, add a pad probe on the nvosd sink for custom processing
-    GstPad *osd_sink_pad = gst_element_get_static_pad(nvosd, "sink");
-    if (!osd_sink_pad) {
-        qWarning("Unable to get OSD sink pad");
-    } else {
-        osd_probe_id = gst_pad_add_probe(osd_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
-                                         osd_sink_pad_buffer_probe, this, NULL);
-        gst_object_unref(osd_sink_pad);
-    }
-
-    qInfo("All pipeline elements are linked successfully.");
-
-    gst_debug_bin_to_dot_file(
-        GST_BIN(pipeline),
-        GST_DEBUG_GRAPH_SHOW_ALL,
-        "night_camera_pipeline"
-    );
-
-    // ============================================================
-    // 3. Start the Pipeline
-    // ============================================================
-    GstStateChangeReturn ret = gst_element_set_state(pipeline, GST_STATE_PLAYING);
-    if (ret == GST_STATE_CHANGE_FAILURE) {
-        qWarning("Failed to set pipeline to PLAYING state.");
-        gst_object_unref(pipeline);
-        return;
-    }
-
-    // Enable debugging as needed
-    gst_debug_set_active(true);
-    gst_debug_set_default_threshold(GST_LEVEL_WARNING);
+     // Create pipeline
+     this->pipeline = gst_pipeline_new("deepstream-camera-app");
+     if (!this->pipeline) {
+         g_printerr("Pipeline could not be created. Exiting.\n");
+         return;
+     }
+ 
+     // Create elements
+     GstElement *source = gst_element_factory_make("v4l2src", "night_camera-source");
+     GstElement *capsfilter1 = gst_element_factory_make("capsfilter", "night_src-cap-filter1");
+     GstElement *nvvidconv1 = gst_element_factory_make("nvvideoconvert", "night_nvvideo-converter1");
+     GstElement *capsfilter2 = gst_element_factory_make("capsfilter", "night_src-cap-filter2");
+     GstElement *streammux = gst_element_factory_make("nvstreammux", "night_stream-muxer");
+     GstElement *pgie = gst_element_factory_make("nvinfer", "primary-inference-engine");
+     GstElement *tracker = gst_element_factory_make("nvtracker", "tracker");
+     GstElement *nvvidconv2 = gst_element_factory_make("nvvideoconvert", "night_nvvideo-converter2");
+     GstElement *nvosd = gst_element_factory_make("nvdsosd", "night_nv-onscreendisplay");
+     GstElement *queue = gst_element_factory_make("queue", "night_queue");
+     GstElement *nvvidconv3 = gst_element_factory_make("nvvideoconvert", "night_nvvideo-converter3");
+     GstElement *appsink_caps = gst_element_factory_make("capsfilter", "night_appsink-caps");
+     GstElement *logger = gst_element_factory_make("nvdslogger", "night_nvds_logger");
+     GstElement *appsink_elem = gst_element_factory_make("appsink", "night_app-sink");
+ 
+     // Check if elements could be created
+     if (!source || !capsfilter1 || !nvvidconv1 || !capsfilter2 || !streammux ||
+         !pgie || !tracker || !nvvidconv2 || !nvosd || !queue ||
+         !nvvidconv3 || !appsink_caps || !logger || !appsink_elem) {
+         g_printerr("One or more elements could not be created. Exiting.\n");
+         return;
+     }
+ 
+     // Set properties for source
+     g_object_set(G_OBJECT(source), "device", "/dev/video1", "do-timestamp", TRUE, NULL);
+ 
+     // Set caps for source
+     GstCaps *caps1 = gst_caps_new_simple("video/x-raw",
+                                         "format", G_TYPE_STRING, "YUY2",
+                                         "width", G_TYPE_INT, 1280,
+                                         "height", G_TYPE_INT, 720,
+                                         "framerate", GST_TYPE_FRACTION, 30, 1,
+                                         NULL);
+     g_object_set(G_OBJECT(capsfilter1), "caps", caps1, NULL);
+     gst_caps_unref(caps1);
+ 
+     // Set properties for nvvideoconvert
+     g_object_set(G_OBJECT(nvvidconv1), "copy-hw", 2, NULL);
+     g_object_set(G_OBJECT(nvvidconv1), "src-crop", "162:0:960:720", NULL);
+ 
+     // Set caps for nvvideoconvert output - USING RGBA
+     GstCaps *caps2 = gst_caps_new_simple("video/x-raw",
+                                         "format", G_TYPE_STRING, "RGBA",
+                                         "width", G_TYPE_INT, 960,
+                                         "height", G_TYPE_INT, 720,
+                                         NULL);
+     GstCapsFeatures *features = gst_caps_features_new("memory:NVMM", NULL);
+     gst_caps_set_features(caps2, 0, features);
+     g_object_set(G_OBJECT(capsfilter2), "caps", caps2, NULL);
+     gst_caps_unref(caps2);
+ 
+     // Set properties for streammux
+     g_object_set(G_OBJECT(streammux), "batch-size", 1, NULL);
+     g_object_set(G_OBJECT(streammux), "width", 960, NULL);
+     g_object_set(G_OBJECT(streammux), "height", 720, NULL);
+     g_object_set(G_OBJECT(streammux), "batched-push-timeout", 30000, NULL);
+     g_object_set(G_OBJECT(streammux), "live-source", TRUE, NULL);
+ 
+     // Configure queue properties
+     g_object_set(G_OBJECT(queue), 
+                 "max-size-buffers", 1,
+                 "leaky", 2, // 2 = downstream (newer buffers preferred)
+                 NULL);
+ 
+     // Configure final video converter
+     g_object_set(G_OBJECT(nvvidconv3), "nvbuf-memory-type", 0, NULL);
+ 
+     // Set caps for appsink - RGBA format for easy QImage integration
+     GstCaps *appsink_caps_spec = gst_caps_new_simple("video/x-raw",
+                                               "format", G_TYPE_STRING, "RGBA",
+                                               "width", G_TYPE_INT, 960,
+                                               "height", G_TYPE_INT, 720,
+                                               NULL);
+     g_object_set(G_OBJECT(appsink_caps), "caps", appsink_caps_spec, NULL);
+     gst_caps_unref(appsink_caps_spec);
+ 
+     // Configure appsink properties
+     g_object_set(G_OBJECT(appsink_elem), 
+                 "emit-signals", TRUE, 
+                 "async", FALSE, 
+                 "sync", FALSE, 
+                 NULL);
+     gst_app_sink_set_max_buffers(GST_APP_SINK(appsink_elem), 1);
+     gst_app_sink_set_drop(GST_APP_SINK(appsink_elem), TRUE);
+ 
+     // Add callback for appsink new-sample signal
+     g_signal_connect(appsink_elem, "new-sample", G_CALLBACK(onNewSampleCallback), this);
+ 
+     // Store the appsink element in the BaseCamera::appSink member variable
+     this->appSink = GST_APP_SINK(appsink_elem);
+ 
+     // Add message handler for pipeline
+     bus = gst_pipeline_get_bus(GST_PIPELINE(this->pipeline));
+     // Add bus watch if needed
+     // bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
+     gst_object_unref(bus);
+ 
+     // Add all elements to pipeline
+     gst_bin_add_many(GST_BIN(this->pipeline), source, capsfilter1, nvvidconv1, capsfilter2,
+                      streammux, nvvidconv2, nvosd, queue,
+                      nvvidconv3, logger, appsink_caps, appsink_elem, NULL);
+ 
+     // Link elements for the main stream path
+     if (!gst_element_link_many(source, capsfilter1, nvvidconv1, capsfilter2, NULL)) {
+         g_printerr("Elements could not be linked (1). Exiting.\n");
+         return;
+     }
+ 
+     // Link streammux manually using request pads
+     GstPad *srcpad = gst_element_get_static_pad(capsfilter2, "src");
+     GstPad *sinkpad = gst_element_request_pad_simple(streammux, "sink_0");
+ 
+     if (gst_pad_link(srcpad, sinkpad) != GST_PAD_LINK_OK) {
+         g_printerr("Failed to link capsfilter2 to streammux. Exiting.\n");
+         return;
+     }
+     gst_object_unref(srcpad);
+     gst_object_unref(sinkpad);
+ 
+     // Link from streammux through nvosd
+     if (!gst_element_link_many(streammux, nvvidconv2, nvosd, queue, NULL)) {
+         g_printerr("Elements could not be linked (2). Exiting.\n");
+         return;
+     }
+ 
+     // Link queue to appsink with logger for FPS monitoring
+     if (!gst_element_link_many(queue, nvvidconv3, logger, appsink_caps, appsink_elem, NULL)) {
+         g_printerr("Elements could not be linked (3). Exiting.\n");
+         return;
+     }
+ 
+     // Optionally, add a pad probe on the nvosd sink for custom processing
+     GstPad *osd_sink_pad = gst_element_get_static_pad(nvosd, "sink");
+     if (!osd_sink_pad) {
+         qWarning("Unable to get OSD sink pad");
+     } else {
+         osd_probe_id = gst_pad_add_probe(osd_sink_pad, GST_PAD_PROBE_TYPE_BUFFER,
+                                        osd_sink_pad_buffer_probe, this, NULL);
+         gst_object_unref(osd_sink_pad);
+     }
+ 
+     qInfo("All pipeline elements are linked successfully.");
+ 
+     // Generate a DOT file for the pipeline for debugging
+     gst_debug_bin_to_dot_file(
+         GST_BIN(this->pipeline),
+         GST_DEBUG_GRAPH_SHOW_ALL,
+         "night_camera_pipeline"
+     );
+ 
+     // Start the Pipeline
+     GstStateChangeReturn ret = gst_element_set_state(this->pipeline, GST_STATE_PLAYING);
+     if (ret == GST_STATE_CHANGE_FAILURE) {
+         qWarning("Failed to set pipeline to PLAYING state.");
+         gst_object_unref(this->pipeline);
+         return;
+     }
+ 
+     // Enable debugging as needed
+     gst_debug_set_active(true);
+     gst_debug_set_default_threshold(GST_LEVEL_WARNING);
 
 }
 

@@ -14,6 +14,8 @@
 #include <QMatrix4x4>
 #include "utils/dcftrackervpi.h"
 #include "utils/targetstate.h"
+#include <QMutex>
+#include <QMutexLocker>
 
 class BaseCameraPipelineDevice : public QWidget {
     Q_OBJECT
@@ -67,6 +69,7 @@ public:
     GstElement *pipeline;
 
 signals:
+    void newFrameAvailable(const QImage& frame);
     void frameUpdated();
     void trackingStatusChanged(bool isTracking);
     void trackingLost();
@@ -102,6 +105,7 @@ protected:
 
     // Pipeline setup
     virtual void buildPipeline() = 0;
+    QMutex frameMutex; // Mutex to protect the frame data
 };
 
 #endif // BASECAMERAPIPELINEDEVICE_H

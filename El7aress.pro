@@ -53,6 +53,7 @@ SOURCES += \
     devices/basecamerapipelinedevice.cpp \
     devices/daycamerapipelinedevice.cpp \
     devices/nightcamerapipelinedevice.cpp \
+    devices/videodisplaywidget.cpp \
     main.cpp \
     ui/mainwindow.cpp \
     ui/custommenudialog.cpp \
@@ -68,6 +69,7 @@ SOURCES += \
     devices/gyrodevice.cpp \
     models/joystickdatamodel.cpp \
     models/systemstatemodel.cpp \
+    utils/cameracontainerwidget.cpp \
     utils/dcftrackervpi.cpp \
     utils/videoglwidget_gl.cpp
 
@@ -84,6 +86,7 @@ HEADERS += \
     devices/basecamerapipelinedevice.h \
     devices/daycamerapipelinedevice.h \
     devices/nightcamerapipelinedevice.h \
+    devices/videodisplaywidget.h \
     models/gyrodatamodel.h \
     models/lensdatamodel.h \
     models/nightcameradatamodel.h \
@@ -108,6 +111,7 @@ HEADERS += \
     models/servodriverdatamodel.h \
     models/systemstatedata.h \
     models/systemstatemodel.h \
+    utils/cameracontainerwidget.h \
     utils/millenious.h \
     utils/dcftrackervpi.h \
     utils/targetstate.h \

@@ -17,7 +17,7 @@
 #include "devices/lensdevice.h"
 #include "models/systemstatemodel.h"
 #include <mutex>
-
+#include "devices/videodisplaywidget.h"
 enum CameraType {
     DAY_CAMERA,
     NIGHT_CAMERA
@@ -28,6 +28,7 @@ enum CameraMode {
     AUTO_TRACK_MODE,
     MANUAL_TRACK_MODE
 };
+ 
 
 /**
  * @class CameraController
@@ -105,6 +106,50 @@ public:
     BaseCameraPipelineDevice* getActiveCamera() const;
     bool startTracking();
     bool switchCamera();
+    void stopTracking();
+    VideoDisplayWidget* getDayCameraDisplay() const;
+    VideoDisplayWidget* getNightCameraDisplay() const;
+    VideoDisplayWidget* getActiveCameraDisplay() const;
+    
+signals:
+    /**
+     * @brief Emitted when a new frame is available from the camera.
+     * @param frame The new frame.
+     * @param isDayCamera True if the frame is from the day camera; false if from the night camera.
+     */
+    void newFrameAvailable(const QImage& frame, bool isDayCamera);
+
+    /**
+     * @brief Emitted when the camera is switched.
+     * @param isDay True if switched to day camera; false if night camera.
+     */
+    void cameraSwitched(bool isDay);
+
+    /**
+     * @brief Emitted if a camera error occurs.
+     * @param errorMsg A string describing the error.
+     */
+    void cameraErrorOccured(const QString &errorMsg);
+
+    /**
+     * @brief Emitted when a selected track is lost.
+     * @param trackId The ID of the lost track.
+     */
+    void selectedTrackLost(int trackId);
+
+    /**
+     * @brief Emitted when the set of tracked IDs changes.
+     * @param ids The new set of tracked IDs.
+     */
+    void trackedIdsUpdated(const QSet<int>& ids);
+
+    /**
+     * @brief Emitted whenever target position is updated.
+     * @param x The X position.
+     * @param y The Y position.
+     */
+    void targetPositionUpdated(double x, double y);
+    void stateChanged();
 
 public slots:
     /**
@@ -145,38 +190,7 @@ public slots:
      */
     void onTrackedIdsUpdated(const QSet<int>& trackIds);
 
-signals:
-    /**
-     * @brief Emitted when the camera is switched.
-     * @param isDay True if switched to day camera; false if night camera.
-     */
-    void cameraSwitched(bool isDay);
 
-    /**
-     * @brief Emitted if a camera error occurs.
-     * @param errorMsg A string describing the error.
-     */
-    void cameraErrorOccured(const QString &errorMsg);
-
-    /**
-     * @brief Emitted when a selected track is lost.
-     * @param trackId The ID of the lost track.
-     */
-    void selectedTrackLost(int trackId);
-
-    /**
-     * @brief Emitted when the set of tracked IDs changes.
-     * @param ids The new set of tracked IDs.
-     */
-    void trackedIdsUpdated(const QSet<int>& ids);
-
-    /**
-     * @brief Emitted whenever target position is updated.
-     * @param x The X position.
-     * @param y The Y position.
-     */
-    void targetPositionUpdated(double x, double y);
-    void stateChanged();
 private slots:
     /**
      * @brief Reacts to a position update from the pipeline.
@@ -203,6 +217,10 @@ private slots:
      */
     void onTrackingStartProcessed(bool newStatus);
 
+    void onDayCameraFrameAvailable(const QImage& frame);
+
+    void onNightCameraFrameAvailable(const QImage& frame);
+
 private:
     DayCameraControlDevice*   m_dayControl       = nullptr;
     DayCameraPipelineDevice*  m_dayPipeline      = nullptr;
@@ -223,13 +241,15 @@ private:
     void setDayCameraProcessingMode(ProcessingMode mode);
     void setNightCameraProcessingMode(ProcessingMode mode);
     void updateStatus(const QString &message);
-
+    
+    VideoDisplayWidget* m_dayDisplayWidget;
+    VideoDisplayWidget* m_nightDisplayWidget;
     // Current processing modes
     ProcessingMode dayCameraMode = MODE_IDLE;
     ProcessingMode nightCameraMode = MODE_IDLE;
       QString statusMessage;
       void safeStopTracking(BaseCameraPipelineDevice camera);
-      void stopTracking();
+
       void safeStopTracking(BaseCameraPipelineDevice *camera);
       float computeFeatureSimilarity(const std::vector<float> &features1, const std::vector<float> &features2);
       bool validateTargetHandoff(const TargetState &oldState, const TargetState &newState);

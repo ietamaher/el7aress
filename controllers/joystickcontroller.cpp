@@ -125,8 +125,10 @@ void JoystickController::onButtonChanged(int button, bool pressed)
                 if (curr.activeCameraIsDay) {
                     nextMode = (motionMode == MotionMode::AutoTrack)
                         ? MotionMode::ManualTrack
-                        : MotionMode::AutoTrack;
+                        : MotionMode::AutoTrack; 
                 }
+                // Stop tracking before mode change [[2]][[3]]
+                m_cameraController->stopTracking();
                 m_stateModel->setMotionMode(nextMode);
                 
             }
@@ -192,6 +194,7 @@ void JoystickController::onButtonChanged(int button, bool pressed)
             if (curr.motionMode == MotionMode::ManualTrack) {
                 if (!curr.startTracking) {
                     m_stateModel->setTrackingStarted(true);
+                    m_cameraController->startTracking();
                     qDebug() << "Joystick pressed: starting tracking.";
                 } else {
                     // Toggle restart flag
@@ -200,6 +203,7 @@ void JoystickController::onButtonChanged(int button, bool pressed)
                     qDebug() << "Joystick pressed: tracking restart requested.";
                 }
             } else if (curr.motionMode == MotionMode::AutoTrack) {
+
                 emit trackSelectButtonPressed();
             }
         }

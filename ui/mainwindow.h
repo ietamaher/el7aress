@@ -18,7 +18,11 @@ class DayCameraPipelineDevice;
 
 #include "models/systemstatemodel.h"
 #include "custommenudialog.h"
-
+#include "devices/videodisplaywidget.h"
+#include "utils/cameracontainerwidget.h"
+#include <QHBoxLayout>
+ #include <QWidget>
+ #include <QStackedWidget>
 namespace Ui {
 class MainWindow;
 }
@@ -101,10 +105,11 @@ private slots:
     void on_read_clicked();
 
     void on_clear_clicked();
-
+    void onCameraStateChanged();
+    void setupCameraDisplays();
 private:
     Ui::MainWindow *ui;
-
+    VideoDisplayWidget *m_currentDisplayWidget;
     GimbalController *m_gimbalCtrl;
     WeaponController *m_weaponCtrl;    
     CameraController *m_cameraCtrl;
@@ -160,6 +165,18 @@ private:
     void setTracklistColorStyle(const QString &style);
     void onTrackIdSelected(QListWidgetItem *current, QListWidgetItem *previous);
     void switchCameraWidget(QWidget *fromWidget, QWidget *toWidget);
+    CameraContainerWidget* m_cameraContainer;
+    QWidget *m_dayWidgetPlaceholder;    
+    QWidget *m_nightWidgetPlaceholder;
+    void testBothDisplays();
+    QStackedWidget* m_displayStack = nullptr;
+    //VideoDisplayWidget* m_currentDisplayWidget = nullptr;
+    //bool m_isDayCameraActive = true;
+    
+    // Remove switchCameraWidget if you're using the stack widget approach
+    // Or keep it for backward compatibility but modify its implementation
+    //void switchCameraWidget(QWidget* fromWidget, QWidget* toWidget);
+    void switchCameraWidget();
 };
 
 #endif // MAINWINDOW_H

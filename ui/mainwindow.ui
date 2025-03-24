@@ -137,16 +137,6 @@
      <string>autotrack</string>
     </property>
    </widget>
-   <widget class="VideoGLWidget_gl" name="cameraContainerWidget">
-    <property name="geometry">
-     <rect>
-      <x>0</x>
-      <y>50</y>
-      <width>640</width>
-      <height>480</height>
-     </rect>
-    </property>
-   </widget>
    <widget class="QPushButton" name="quit">
     <property name="geometry">
      <rect>
@@ -163,8 +153,8 @@
    <widget class="QPushButton" name="pushButton_2">
     <property name="geometry">
      <rect>
-      <x>640</x>
-      <y>170</y>
+      <x>690</x>
+      <y>240</y>
       <width>80</width>
       <height>22</height>
      </rect>
@@ -235,15 +225,21 @@
      </rect>
     </property>
    </widget>
+   <widget class="QWidget" name="cameraContainerWidget" native="true">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>110</y>
+      <width>640</width>
+      <height>480</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color: rgb(0, 255, 0);</string>
+    </property>
+   </widget>
   </widget>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>VideoGLWidget_gl</class>
-   <extends>QOpenGLWidget</extends>
-   <header location="global">utils/videoglwidget_gl.h</header>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

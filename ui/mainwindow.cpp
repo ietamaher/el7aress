@@ -14,83 +14,222 @@
 #include <QCoreApplication>
 
 MainWindow::MainWindow(GimbalController *gimbal,
-                       WeaponController *weapon,
-                       CameraController *camera,
-                       SystemStateMachine *stateMachine,
-                       JoystickController *joystick,
-                       SystemStateModel *stateModel,
-                       QWidget *parent)
-    : QMainWindow(parent),
-    ui(new Ui::MainWindow),
-    m_gimbalCtrl(gimbal),
-    m_weaponCtrl(weapon),
-    m_cameraCtrl(camera),
-    m_joystickCtrl(joystick),
-    m_stateModel(stateModel),
-    m_stateMachine(stateMachine),
-    m_isDayCameraActive(true)
+    WeaponController *weapon,
+    CameraController *camera,
+    SystemStateMachine *stateMachine,
+    JoystickController *joystick,
+    SystemStateModel *stateModel,
+    QWidget *parent)
+: QMainWindow(parent),
+ui(new Ui::MainWindow),
+m_gimbalCtrl(gimbal),
+m_weaponCtrl(weapon),
+m_cameraCtrl(camera),
+m_joystickCtrl(joystick),
+m_stateModel(stateModel),
+m_stateMachine(stateMachine),
+m_isDayCameraActive(true),
+m_currentDisplayWidget(nullptr),
+m_displayStack(nullptr),
+m_dayWidgetPlaceholder(nullptr),
+m_nightWidgetPlaceholder(nullptr)
 {
-    ui->setupUi(this);
+ui->setupUi(this);
 
-    if (m_stateModel) {
-        connect(m_stateModel, &SystemStateModel::dataChanged,
-                this,        &MainWindow::onSystemStateChanged);
+// Set up connections
+if (m_stateModel) {
+connect(m_stateModel, &SystemStateModel::dataChanged,
+this, &MainWindow::onSystemStateChanged);
+}
+
+connect(m_joystickCtrl, &JoystickController::trackSelectButtonPressed,
+this, &MainWindow::onTrackSelectButtonPressed);
+
+connect(m_gimbalCtrl, &GimbalController::azAlarmDetected, this, &MainWindow::onAlarmDetected);
+connect(m_gimbalCtrl, &GimbalController::azAlarmCleared, this, &MainWindow::onAlarmCleared);
+connect(m_gimbalCtrl, &GimbalController::elAlarmDetected, this, &MainWindow::onAlarmDetected);
+connect(m_gimbalCtrl, &GimbalController::elAlarmCleared, this, &MainWindow::onAlarmCleared);
+connect(m_cameraCtrl, &CameraController::stateChanged, this, &MainWindow::onCameraStateChanged);
+
+// Ensure the camera container has a predictable size
+ui->cameraContainerWidget->setMinimumSize(640, 480);
+
+// Temporary placeholders (will be replaced by setupCameraDisplays)
+m_dayWidgetPlaceholder = new QWidget(this);
+m_nightWidgetPlaceholder = new QWidget(this);
+
+// Set up the camera displays
+setupCameraDisplays();
+
+// Configure the track list widget
+QFont listFont("Arial", 13);
+ui->trackIdListWidget->setFont(listFont);
+ui->trackIdListWidget->setStyleSheet(
+"QListWidget { background-color: rgba(128, 128, 128, 170); }"
+"QListWidget::item { color: rgba(150, 0, 0, 255); }"
+);
+setTracklistColorStyle("Green");
+ui->trackIdListWidget->clear();
+ui->trackIdListWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+ui->trackIdListWidget->setSelectionBehavior(QAbstractItemView::SelectRows);
+
+// Initially show the day camera
+SystemStateData newData;
+onActiveCameraChanged(newData.activeCameraIsDay);
+
+// Set up the update timer
+updateTimer = new QTimer(this);
+updateTimer->setInterval(500);
+connect(updateTimer, &QTimer::timeout, this, &MainWindow::processPendingUpdates);
+updateTimer->start();
+
+// Connect tracker signals
+connect(m_cameraCtrl, &CameraController::trackedIdsUpdated, 
+this, &MainWindow::onTrackedIdsUpdated, Qt::QueuedConnection);
+connect(m_cameraCtrl, &CameraController::selectedTrackLost, 
+this, &MainWindow::onSelectedTrackLost);
+}
+
+void MainWindow::switchCameraWidget(QWidget* fromWidget, QWidget* toWidget)
+{
+    // Get the layout from the camera container widget
+    QLayout* layout = ui->cameraContainerWidget->layout();
+    if (!layout) {
+        qWarning() << "No layout found in cameraContainerWidget!";
+        return;
     }
 
-    connect(m_joystickCtrl, &JoystickController::trackSelectButtonPressed,
-            this, &MainWindow::onTrackSelectButtonPressed);
+    // Hide the old widget
+    if (fromWidget) {
+        fromWidget->hide(); // Hide the widget but do not delete it
+    }
 
-            connect(m_gimbalCtrl, &GimbalController::azAlarmDetected, this, &MainWindow::onAlarmDetected);
-            connect(m_gimbalCtrl, &GimbalController::azAlarmCleared, this, &MainWindow::onAlarmCleared);
-            connect(m_gimbalCtrl, &GimbalController::elAlarmDetected, this, &MainWindow::onAlarmDetected);
-            connect(m_gimbalCtrl, &GimbalController::elAlarmCleared, this, &MainWindow::onAlarmCleared);
+    // Add the new widget if it's not already in the layout
+    if (toWidget && !toWidget->parent()) {
+        layout->addWidget(toWidget); // Add the widget to the layout
+    }
 
+    // Show and bring the new widget to the front
+    if (toWidget) {
+        toWidget->show();
+        toWidget->raise(); // Bring to front
+    }
 
-    // Create a layout for whichever placeholder widget in your UI, or the central widget
-    m_layout = new QVBoxLayout(ui->cameraContainerWidget);
-        // e.g. cameraContainerWidget is a QWidget from .ui
+    // Force layout update (optional)
+    layout->update();
+}
+ 
+void MainWindow::setupCameraDisplays()
+{
+    if (!m_cameraCtrl) {
+        qWarning() << "Camera controller is null!";
+        return;
+    }
 
-    m_layout->setContentsMargins(0, 0, 0, 0);
-    m_layout->setSpacing(0);
+    // Get display widgets from controller
+    VideoDisplayWidget* dayDisplay = m_cameraCtrl->getDayCameraDisplay();
+    VideoDisplayWidget* nightDisplay = m_cameraCtrl->getNightCameraDisplay();
 
-    // Set font and font size
-    QFont listFont("Arial", 13);
-    ui->trackIdListWidget->setFont(listFont);
+    if (!dayDisplay || !nightDisplay) {
+        qWarning() << "Camera display widgets are null!";
+        return;
+    }
 
-    // Set text color and background color with semi-transparency using Stylesheets
-    ui->trackIdListWidget->setStyleSheet(
-        "QListWidget { background-color: rgba(128, 128, 128, 170); }" // Light gray with 50% opacity
-        "QListWidget::item { color: rgba(150, 0, 0, 255); }" // Dark blue text color
-        );
+    // Create the stacked widget
+    m_displayStack = new QStackedWidget(this);
+    
+    // Add both camera displays to the stack
+    m_displayStack->addWidget(dayDisplay);
+    m_displayStack->addWidget(nightDisplay);
 
-    //ui->trackIdListWidget->hide();
-    setTracklistColorStyle("Green");
-    //ui->trackIdListWidget->hide();
-    ui->trackIdListWidget->clear();
-    // Optionally, set selection behavior and mode
-    ui->trackIdListWidget->setSelectionMode(QAbstractItemView::SingleSelection);
-    ui->trackIdListWidget->setSelectionBehavior(QAbstractItemView::SelectRows);
-    // Initially show the day camera
-    SystemStateData newData;
-    onActiveCameraChanged(newData.activeCameraIsDay);
-    //m_layout->addWidget(m_cameraCtrl->getDayCameraWidget());
-    //m_cameraCtrl->getDayCameraWidget()->setVisible(true);
+    // Set size constraints for the display widgets
+    dayDisplay->setMinimumSize(640, 480);
+    nightDisplay->setMinimumSize(640, 480);
+    
+    // Optional: Set maximum size to prevent excessive scaling
+    dayDisplay->setMaximumSize(640, 480);
+    nightDisplay->setMaximumSize(640, 480);
 
-    // If you have a button or checkbox to switch cameras:
-    /*connect(ui->switchCameraButton, &QPushButton::clicked, this, [this]() {
-        // Toggle
-        onActiveCameraChanged(!m_isDayCameraActive);
-    });*/
-    updateTimer = new QTimer(this);
-    updateTimer->setInterval(500); // Update every 500ms
+    // Clear the current layout of the camera container
+    QLayout* oldLayout = ui->cameraContainerWidget->layout();
+    if (oldLayout) {
+        // Remove all widgets from the old layout
+        while (oldLayout->count() > 0) {
+            QLayoutItem* item = oldLayout->takeAt(0);
+            if (item->widget()) {
+                item->widget()->setParent(nullptr);
+            }
+            delete item;
+        }
+        delete oldLayout;
+    }
 
-    connect(m_cameraCtrl, &CameraController::trackedIdsUpdated, this, &MainWindow::onTrackedIdsUpdated, Qt::QueuedConnection);
-    connect(m_cameraCtrl, &CameraController::selectedTrackLost, this, &MainWindow::onSelectedTrackLost);
-    connect(updateTimer, &QTimer::timeout, this, &MainWindow::processPendingUpdates);
+    // Create a new layout for the camera container
+    QVBoxLayout* newLayout = new QVBoxLayout(ui->cameraContainerWidget);
+    newLayout->setContentsMargins(0, 0, 0, 0);
+    newLayout->setSpacing(0);
+    ui->cameraContainerWidget->setLayout(newLayout);
 
-    updateTimer->start();
+    // Add the stacked widget to the new layout
+    newLayout->addWidget(m_displayStack);
 
+    // Show the active camera
+    VideoDisplayWidget* activeDisplay = m_cameraCtrl->getActiveCameraDisplay();
+    if (activeDisplay) {
+        m_displayStack->setCurrentWidget(activeDisplay);
+        m_currentDisplayWidget = activeDisplay;
+    }
 
+    // Clean up any placeholders
+    if (m_dayWidgetPlaceholder) {
+        delete m_dayWidgetPlaceholder;
+        m_dayWidgetPlaceholder = nullptr;
+    }
+    if (m_nightWidgetPlaceholder) {
+        delete m_nightWidgetPlaceholder;
+        m_nightWidgetPlaceholder = nullptr;
+    }
+
+    // Connect to camera controller signals for state changes
+    connect(m_cameraCtrl, &CameraController::stateChanged, 
+            this, &MainWindow::onCameraStateChanged, Qt::UniqueConnection);
+}
+
+void MainWindow::onCameraStateChanged()
+{
+    if (!m_cameraCtrl || !m_displayStack) return;
+    
+    // Get the currently active camera display
+    VideoDisplayWidget* activeDisplay = m_cameraCtrl->getActiveCameraDisplay();
+    
+    // Only switch if different from current display
+    if (activeDisplay && activeDisplay != m_currentDisplayWidget) {
+        m_displayStack->setCurrentWidget(activeDisplay);
+        m_currentDisplayWidget = activeDisplay;
+        
+        qDebug() << "Switched display to" << activeDisplay->objectName();
+    }
+}
+
+void MainWindow::onActiveCameraChanged(bool isDay)
+{
+    if (!m_cameraCtrl || !m_displayStack) return;
+    
+    // Update our internal state
+    m_isDayCameraActive = isDay;
+    
+    // Get the appropriate display widget
+    VideoDisplayWidget* activeDisplay = 
+        isDay ? m_cameraCtrl->getDayCameraDisplay() : m_cameraCtrl->getNightCameraDisplay();
+    
+    // Switch the display
+    if (activeDisplay) {
+        m_displayStack->setCurrentWidget(activeDisplay);
+        m_currentDisplayWidget = activeDisplay;
+        
+        qDebug() << "Camera switched to" << (isDay ? "Day" : "Night")
+                 << "- display:" << activeDisplay->objectName();
+    }
 }
 
 MainWindow::~MainWindow()
@@ -142,30 +281,9 @@ void MainWindow::onSystemStateChanged(const SystemStateData &newData)
 
 }
 
-void MainWindow::onActiveCameraChanged(bool isDay)
-{
-    // Guard against redundant operations
-    if (m_isDayCameraActive == isDay)
-        return;
 
-    // Update widgets based on active camera
-    if (isDay) {
-        // Switch to day camera
-        switchCameraWidget(
-            m_cameraCtrl->getNightCameraWidget(),
-            m_cameraCtrl->getDayCameraWidget()
-        );
-    } else {
-        // Switch to night camera
-        switchCameraWidget(
-            m_cameraCtrl->getDayCameraWidget(),
-            m_cameraCtrl->getNightCameraWidget()
-        );
-    }
 
-    // Update state
-    m_isDayCameraActive = isDay;
-}
+
 //m_cameraCtrl->setActiveCamera(m_isDayCameraActive);
 void MainWindow::onUpSwChanged()
 {
@@ -793,20 +911,7 @@ void MainWindow::on_autotrack_clicked()
 }
 
 
-void MainWindow::switchCameraWidget(QWidget* fromWidget, QWidget* toWidget)
-{
-    // Remove the old widget if it exists in the layout
-    if (fromWidget && m_layout->indexOf(fromWidget) != -1) {
-        m_layout->removeWidget(fromWidget);
-        fromWidget->setVisible(false);
-    }
 
-    // Add the new widget if it's not already in the layout
-    if (toWidget && m_layout->indexOf(toWidget) == -1) {
-        m_layout->addWidget(toWidget);
-        toWidget->setVisible(true);
-    }
-}
 
 void MainWindow::on_day_clicked()
 {
