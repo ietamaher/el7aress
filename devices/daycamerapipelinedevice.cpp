@@ -105,7 +105,7 @@ void DayCameraPipelineDevice::start()
 
 void DayCameraPipelineDevice::onSystemStateChanged(const SystemStateData &state)
 {
-    m_systemState = state;
+    m_systemState = state; 
 }
 
 void DayCameraPipelineDevice::buildPipeline()
